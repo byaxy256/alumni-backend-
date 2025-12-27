@@ -20,6 +20,7 @@ MONGO_URI=mongodb+srv://Alumni_admin:MoJo256@alumni-cluster.crytcoj.mongodb.net/
 JWT_SECRET=ucu_alumni_secret_2025
 BASE_URL=https://your-app.onrender.com
 UPLOAD_DIR=uploads
+FRONTEND_URL=https://your-app.vercel.app
 ```
 
 ### Service Settings
