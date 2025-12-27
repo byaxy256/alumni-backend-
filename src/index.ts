@@ -35,7 +35,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = Number(process.env.PORT) || 4000;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
 
 app.use(cors({
@@ -95,11 +95,14 @@ connectMongoDB().then(success => {
     console.error('Failed to connect to MongoDB. Exiting...');
     process.exit(1);
   }
+  
+  // Start server only after MongoDB connects
+  // Bind to 0.0.0.0 for Render deployment
+  const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
+  app.listen(PORT, HOST, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+  });
 }).catch(err => {
   console.error('MongoDB initialization failed:', err);
   process.exit(1);
-});
-
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
 });

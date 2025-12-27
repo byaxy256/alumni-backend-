@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: alumni-circle-backend
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false  # Set this in Render dashboard
+      - key: JWT_SECRET
+        sync: false  # Set this in Render dashboard
+      - key: BASE_URL
+        sync: false  # Set to your Render URL
