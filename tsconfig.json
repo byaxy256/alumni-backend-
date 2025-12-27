@@ -22,6 +22,7 @@
     "src/**/*.js",
     "scripts/**/*.ts",
     "scripts/**/*.js"
-  ]
+  ],
+  "exclude": ["node_modules"]
 }
 
