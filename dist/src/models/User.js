@@ -6,6 +6,7 @@ const UserSchema = new Schema({
     email: { type: String, required: true, unique: true, index: true },
     password: { type: String, required: true },
     full_name: { type: String, required: true },
+    phone: { type: String }, // Added phone field
     role: {
         type: String,
         enum: ['student', 'alumni', 'admin', 'alumni_office'],

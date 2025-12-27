@@ -1,24 +1,28 @@
 // src/routes/loans.ts
 import express from 'express';
-import db from '../db.js';
 import multer from 'multer';
-// --- THE FIX IS HERE ---
-// We are importing the correct function names from your middleware file.
+import { Loan } from '../models/Loan.js';
+import { User } from '../models/User.js';
 import { authenticate, authorize } from '../middleware/auth.js';
-// --- END OF FIX ---
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 // POST /api/loans (Student creates a loan)
-// This route should only require a student to be logged in.
 router.post('/', authenticate, authorize(['student']), upload.any(), async (req, res) => {
     try {
-        const studentUid = req.user.uid; // always from token ONLY
+        const studentUid = req.user.uid;
         const { amountRequested, semester, consentFullChop, purpose } = req.body;
         const amount = Number(amountRequested);
         if (isNaN(amount) || amount <= 0)
             return res.status(400).json({ error: 'Invalid amountRequested' });
-        const [result] = await db.execute('INSERT INTO loans (student_uid, amount_requested, semester, consent_full_chop, purpose, outstanding_balance, status) VALUES (?, ?, ?, ?, ?, ?, ?)', [studentUid, amount, semester || null, consentFullChop ? 1 : 0, purpose || null, amount, 'pending']);
-        res.status(201).json({ ok: true, id: result.insertId });
+        const loan = await Loan.create({
+            student_uid: studentUid,
+            amount,
+            outstanding_balance: amount,
+            status: 'pending',
+            purpose: purpose || '',
+            application_date: new Date()
+        });
+        res.status(201).json({ ok: true, id: loan._id.toString() });
     }
     catch (err) {
         console.error('POST /loans error:', err);
@@ -26,14 +30,24 @@ router.post('/', authenticate, authorize(['student']), upload.any(), async (req,
     }
 });
 // GET /api/loans (Alumni Office gets all loans)
-// This route requires a user to be logged in AND have the 'alumni_office' or 'admin' role.
 router.get('/', authenticate, authorize(['alumni_office', 'admin']), async (req, res) => {
     try {
-        const sql = `SELECT l.*, u.full_name, u.email, u.phone, u.program, u.semester, u.university_id 
-                 FROM loans l JOIN users u ON l.student_uid = u.uid 
-                 ORDER BY l.created_at DESC`;
-        const [rows] = await db.execute(sql);
-        res.json(rows || []);
+        const loans = await Loan.find().sort({ created_at: -1 }).lean();
+        // Enrich with user data
+        const enriched = await Promise.all(loans.map(async (loan) => {
+            const user = await User.findOne({ uid: loan.student_uid }).select('full_name email phone meta').lean();
+            return {
+                ...loan,
+                id: loan._id.toString(),
+                full_name: user?.full_name || '',
+                email: user?.email || '',
+                phone: user?.phone || '',
+                program: user?.meta?.program || '',
+                semester: user?.meta?.semester || '',
+                university_id: user?.meta?.university_id || ''
+            };
+        }));
+        res.json(enriched);
     }
     catch (err) {
         console.error('GET /loans error:', err);
@@ -41,17 +55,20 @@ router.get('/', authenticate, authorize(['alumni_office', 'admin']), async (req,
     }
 });
 // GET /api/loans/mine (Student gets their own loans)
-// This only requires a user to be logged in.
 router.get('/mine', authenticate, async (req, res) => {
     try {
-        const studentUid = req.user.uid; // Get UID securely from the token
-        const [rows] = await db.execute('SELECT * FROM loans WHERE student_uid = ? ORDER BY created_at DESC', [studentUid]);
-        res.json(rows || []);
+        const studentUid = req.user.uid;
+        const loans = await Loan.find({ student_uid: studentUid })
+            .sort({ created_at: -1 })
+            .lean();
+        res.json(loans.map(loan => ({ ...loan, id: loan._id.toString() })));
     }
-    catch (err) { /* ... */ }
+    catch (err) {
+        console.error('GET /loans/mine error:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 // PATCH /api/loans/:id/status (Alumni Office updates status)
-// Requires 'alumni_office' or 'admin' role.
 router.patch('/:id/status', authenticate, authorize(['alumni_office', 'admin']), async (req, res) => {
     const { id } = req.params;
     try {
@@ -59,7 +76,12 @@ router.patch('/:id/status', authenticate, authorize(['alumni_office', 'admin']),
         if (!['approved', 'rejected'].includes(status)) {
             return res.status(400).json({ error: 'Invalid status provided' });
         }
-        await db.execute('UPDATE loans SET status = ?, rejection_reason = ? WHERE id = ?', [status, status === 'rejected' ? reason || null : null, id]);
+        await Loan.findByIdAndUpdate(id, {
+            status,
+            rejection_reason: status === 'rejected' ? (reason || null) : null,
+            approved_at: status === 'approved' ? new Date() : undefined,
+            approved_by: status === 'approved' ? req.user.uid : undefined
+        });
         res.json({ message: `Loan status updated successfully to ${status}` });
     }
     catch (err) {

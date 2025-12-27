@@ -19,10 +19,20 @@
   },
   "include": [
     "src/**/*.ts",
-    "src/**/*.js",
-    "scripts/**/*.ts",
-    "scripts/**/*.js"
+    "src/**/*.js"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "scripts",
+    "src/migrate-mentors.ts",
+    "src/routes/applications.ts",
+    "src/routes/chats.ts",
+    "src/routes/content.ts",
+    "src/routes/disburse.ts",
+    "src/routes/mentors.ts",
+    "src/routes/payments.ts",
+    "src/routes/support.ts"
+  ]
 }
 

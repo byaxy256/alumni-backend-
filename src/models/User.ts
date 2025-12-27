@@ -7,6 +7,7 @@ export interface IUser extends Document {
     email: string;
     password: string;
     full_name: string;
+    phone?: string; // Added phone field
     role: 'student' | 'alumni' | 'admin' | 'alumni_office';
     meta?: any;
     created_at: Date;
@@ -19,6 +20,7 @@ const UserSchema = new Schema<IUser>({
     email: { type: String, required: true, unique: true, index: true },
     password: { type: String, required: true },
     full_name: { type: String, required: true },
+    phone: { type: String }, // Added phone field
     role: { 
         type: String, 
         enum: ['student', 'alumni', 'admin', 'alumni_office'],

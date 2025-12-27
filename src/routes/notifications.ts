@@ -1,8 +1,7 @@
 // src/routes/notifications.ts
 import express from 'express';
-import db from '../db.js';
+import { Notification } from '../models/Notification.js';
 import { authenticate } from '../middleware/auth.js';
-import type { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 const router = express.Router();
 
@@ -19,15 +18,11 @@ router.get('/mine', authenticate, async (req, res) => {
             return res.status(401).json({ error: "Unauthorized: Could not identify user from token." });
         }
 
-        // --- THE FIX IS HERE ---
-        // We are changing 'user_uid' to 'target_uid' to match your actual database table structure.
-        const [notifications] = await db.execute<RowDataPacket[]>(
-            "SELECT * FROM notifications WHERE target_uid = ? ORDER BY created_at DESC",
-            [userUid]
-        );
-        // --- END OF FIX ---
+        const notifications = await Notification.find({ target_uid: userUid })
+            .sort({ created_at: -1 })
+            .lean();
 
-        res.json(notifications || []);
+        res.json(notifications.map(n => ({ ...n, id: n._id.toString() })));
 
     } catch (err) {
         console.error("Fetch notifications error:", err);
@@ -49,20 +44,14 @@ router.patch('/:notificationId/read', authenticate, async (req, res) => {
             return res.status(400).json({ error: "Notification ID is required." });
         }
 
-        // Try to mark as read (column may not exist, that's okay)
-        try {
-            const [result] = await db.execute<ResultSetHeader>(
-                "UPDATE notifications SET `read` = 1 WHERE id = ? AND target_uid = ?",
-                [notificationId, userUid]
-            );
-            if (result.affectedRows === 0) {
-                return res.status(404).json({ error: "Notification not found or you do not have permission." });
-            }
-        } catch (updateErr: any) {
-            // If column doesn't exist, just mark as success anyway
-            if (updateErr.code !== 'ER_BAD_FIELD_ERROR') {
-                throw updateErr;
-            }
+        const result = await Notification.findOneAndUpdate(
+            { _id: notificationId, target_uid: userUid },
+            { $set: { read: true } },
+            { new: true }
+        );
+
+        if (!result) {
+            return res.status(404).json({ error: "Notification not found or you do not have permission." });
         }
 
         res.status(200).json({ message: "Notification marked as read." });
@@ -82,18 +71,10 @@ router.patch('/read-all', authenticate, async (req, res) => {
     try {
         const userUid = (req as any).user.uid;
         
-        // Try to mark all as read (column may not exist, that's okay)
-        try {
-            await db.execute<ResultSetHeader>(
-                "UPDATE notifications SET `read` = 1 WHERE target_uid = ? AND `read` = 0",
-                [userUid]
-            );
-        } catch (updateErr: any) {
-            // If column doesn't exist, just mark as success anyway
-            if (updateErr.code !== 'ER_BAD_FIELD_ERROR') {
-                throw updateErr;
-            }
-        }
+        await Notification.updateMany(
+            { target_uid: userUid, read: { $ne: true } },
+            { $set: { read: true } }
+        );
 
         res.status(200).json({ message: "All notifications marked as read." });
 
