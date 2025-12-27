@@ -1,0 +1,47 @@
+{
+  "name": "alumni-server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node dist/src/index.js",
+    "dev": "nodemon --watch src --ext ts,js,json --exec \"npm run build && node dist/src/index.js\"",
+    "fix:events-images": "node fix-events-image-schema.js",
+    "migrate": "node --loader ts-node/esm scripts/migrate-to-mongodb.ts"
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1",
+    "fs-extra": "^11.3.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongodb": "^6.21.0",
+    "mongoose": "^8.20.4",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.16.0",
+    "pdfkit": "^0.17.2",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.25",
+    "@types/fs-extra": "^11.0.4",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/multer": "^1.4.11",
+    "@types/node": "^20.19.25",
+    "@types/pdfkit": "^0.17.3",
+    "nodemon": "^3.1.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "description": "",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "types": "./dist/index.d.ts"
+}

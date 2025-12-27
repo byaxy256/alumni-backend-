@@ -1,0 +1,28 @@
+
+> alumni-server@1.0.0 start
+> node dist/index.js
+
+file:///Users/moses/Downloads/alumni%20circle%202/alumni-server/dist/routes/content.js:261
+        export default router;
+        ^^^^^^
+
+SyntaxError: Unexpected token 'export'
+    at compileSourceTextModule (node:internal/modules/esm/utils:305:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:111:18)
+    at #translate (node:internal/modules/esm/loader:467:20)
+    at afterLoad (node:internal/modules/esm/loader:523:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:528:12)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:565:36)
+    at afterResolve (node:internal/modules/esm/loader:618:52)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:624:12)
+    at ModuleJob.syncLink (node:internal/modules/esm/module_job:143:33)
+    at ModuleJob.link (node:internal/modules/esm/module_job:228:17)
+
+Node.js v25.2.1
+npm error Lifecycle script `start` failed with error:
+npm error code 1
+npm error path /Users/moses/Downloads/alumni circle 2/alumni-server
+npm error workspace alumni-server@1.0.0
+npm error location /Users/moses/Downloads/alumni circle 2/alumni-server
+npm error command failed
+npm error command sh -c node dist/index.js

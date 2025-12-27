@@ -1,0 +1,13 @@
+// src/models/index.ts - Export all models
+export { User } from './User.js';
+export { Loan } from './Loan.js';
+export { Payment } from './Payment.js';
+export { Notification } from './Notification.js';
+export { Disbursement } from './Disbursement.js';
+export { Application } from './Application.js';
+export { Chat } from './Chat.js';
+export { Event } from './Event.js';
+export { Footprint } from './Footprint.js';
+export { Message } from './Message.js';
+export { News } from './News.js';
+export { SupportRequest } from './SupportRequest.js';
