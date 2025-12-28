@@ -10,6 +10,9 @@ MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/alumni_aid
 
 # Feature flag: enable MongoDB reads (set to 'true' after migration)
 USE_MONGODB=false
+
+# IMPORTANT: Target Atlas instead of local Mongo for migration
+USE_LOCAL_MONGO=false
 ```
 
 ## Migration Steps
@@ -31,6 +34,11 @@ This will:
 - Copy all users, loans, payments, notifications, and disbursements from MySQL to MongoDB
 - Preserve original SQL IDs as `sqlId` fields
 - Create appropriate indexes
+
+Notes:
+- Ensure `MONGODB_URI` includes the intended database name (e.g. `/alumni_aid`).
+- Set `USE_LOCAL_MONGO=false` so migration writes to Atlas, not your local Mongo.
+- Provide MySQL source environment variables for the migration: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_DATABASE`.
 
 ### 3. Verify Migration
 Check MongoDB Atlas Data Explorer to confirm data was migrated.

@@ -1,7 +1,7 @@
 // scripts/migrate-to-mongodb.ts - One-time data migration from MySQL to MongoDB
 import db from '../src/db.js';
 import mongooseDefault, { connectMongoDB } from '../src/mongodb.js';
-import { User, Loan, Payment, Notification, Disbursement, Application, Chat, Event, Footprint, Message, News, SupportRequest } from '../src/models/index.js';
+import { User, Loan, Payment, Notification, Disbursement, Application, Chat, Event, Footprint, Message, News, SupportRequest, EventRegistration } from '../src/models/index.js';
 import type { RowDataPacket } from 'mysql2';
 
 async function migrateUsers() {
@@ -231,6 +231,36 @@ async function migrateEvents() {
     console.log(`✓ Migrated ${rows.length} events`);
 }
 
+async function migrateEventRegistrations() {
+    console.log('Migrating event registrations...');
+    try {
+        const [rows] = await db.execute<RowDataPacket[]>('SELECT * FROM event_registrations');
+        for (const row of rows) {
+            try {
+                await EventRegistration.findOneAndUpdate(
+                    { sqlId: row.id },
+                    {
+                        sqlId: row.id,
+                        event_sql_id: row.event_id,
+                        student_uid: row.student_uid,
+                        registered_at: row.registered_at || row.created_at || new Date(),
+                    },
+                    { upsert: true, new: true }
+                );
+            } catch (err) {
+                console.error(`Failed to migrate event registration ${row.id}:`, err);
+            }
+        }
+        console.log(`✓ Migrated ${rows.length} event registrations`);
+    } catch (err: any) {
+        if (err?.code === 'ER_NO_SUCH_TABLE') {
+            console.log('✓ event_registrations table does not exist, skipping');
+        } else {
+            console.error('Failed to migrate event registrations:', err);
+        }
+    }
+}
+
 async function migrateFootprints() {
     console.log('Migrating footprints...');
     const [rows] = await db.execute<RowDataPacket[]>('SELECT * FROM footprints');
@@ -358,6 +388,7 @@ async function runMigration() {
         await migrateMessages();
         await migrateNews();
         await migrateSupportRequests();
+        await migrateEventRegistrations();
         
         console.log('\n✅ Migration completed successfully!');
         console.log('You can now enable MongoDB reads by setting USE_MONGODB=true in .env');
