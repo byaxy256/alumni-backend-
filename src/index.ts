@@ -11,15 +11,15 @@ import authRoutes from './routes/auth.js';
 import loanRoutes from './routes/loans.js';
 import notificationRoutes from './routes/notifications.js';
 import uploadRoutes from './routes/upload.js';
+import contentRoutes from './routes/content-mongo.js';
+import mentorRoutes from './routes/mentors-mongo.js';
+import supportRoutes from './routes/support-mongo.js';
 
 // TODO: Convert these routes to MongoDB
-// import supportRoutes from './routes/support.js';
 // import applicationRoutes from './routes/applications.js';
 // import chatRoutes from './routes/chats.js';
 // import disburseRoutes from './routes/disburse.js';
 // import paymentRoutes from './routes/payments.js';
-// import contentRoutes from './routes/content.js';
-// import mentorRoutes from './routes/mentors.js';
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
@@ -63,15 +63,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/content', contentRoutes);
+app.use('/api/mentors', mentorRoutes);
+app.use('/api/support', supportRoutes);
 
 // TODO: Re-enable after MongoDB conversion
-// app.use('/api/support', supportRoutes);
 // app.use('/api/applications', applicationRoutes);
 // app.use('/api/chat', chatRoutes);
 // app.use('/api/disburse', disburseRoutes);
 // app.use('/api/payments', paymentRoutes);
-// app.use('/api/content', contentRoutes);
-// app.use('/api/mentors', mentorRoutes);
 // root
 app.get('/', (req, res) => res.send('UCU Alumni Circle Server Running - MongoDB Only'));
 
