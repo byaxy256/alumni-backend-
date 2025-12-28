@@ -63,9 +63,11 @@ router.post('/register', async (req, res) => {
 // --- LOGIN ---
 router.post('/login', async (req, res) => {
   try {
+    console.log('Incoming /auth/login body:', req.body);
     // support both frontends that send { email, phone, password } or { emailOrPhone, password }
     const { email, phone, emailOrPhone, password } = req.body;
     const credential = (emailOrPhone || email || phone || '').trim();
+    console.log('Parsed credential for login:', credential ? credential : '(empty)');
 
     if (!credential || !password) return res.status(400).json({ error: 'Missing credentials' });
 
