@@ -2,6 +2,11 @@
 import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
 
+console.log('=== AUTH MIDDLEWARE INIT ===');
+console.log('JWT_SECRET env var exists:', !!process.env.JWT_SECRET);
+console.log('JWT_SECRET value:', process.env.JWT_SECRET ? `${process.env.JWT_SECRET.substring(0, 10)}...` : 'UNDEFINED - USING FALLBACK');
+console.log('================================');
+
 export const authenticate = (req, res, next) => {
     const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.split(' ')[1];
@@ -9,7 +14,8 @@ export const authenticate = (req, res, next) => {
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) {
-            console.error('JWT verification failed:', err.message, 'Using secret:', JWT_SECRET === process.env.JWT_SECRET ? 'FROM ENV' : 'DEFAULT');
+            console.error('JWT verification failed:', err.message);
+            console.error('Using secret (first 10 chars):', JWT_SECRET === process.env.JWT_SECRET ? `ENV: ${process.env.JWT_SECRET?.substring(0, 10)}...` : `FALLBACK`);
             return res.sendStatus(403);
         }
         (req as any).user = user;

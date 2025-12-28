@@ -9,7 +9,12 @@ dotenv.config();
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
 
-console.log('Auth route loaded. JWT_SECRET is set:', !!process.env.JWT_SECRET, 'Using secret:', JWT_SECRET === process.env.JWT_SECRET ? 'FROM ENV' : 'DEFAULT FALLBACK');
+console.log('=== AUTH ROUTE INIT ===');
+console.log('JWT_SECRET env var exists:', !!process.env.JWT_SECRET);
+console.log('JWT_SECRET value:', process.env.JWT_SECRET ? `${process.env.JWT_SECRET.substring(0, 10)}...` : 'UNDEFINED - USING FALLBACK');
+console.log('Actual secret being used:', JWT_SECRET === process.env.JWT_SECRET ? 'FROM ENVIRONMENT' : 'FALLBACK (change_this_secret)');
+console.log('All env vars keys:', Object.keys(process.env).filter(k => k.includes('JWT') || k.includes('SECRET')));
+console.log('========================');
 
 const genToken = (payload: object) => jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 
