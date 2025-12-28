@@ -64,14 +64,14 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     console.log('Incoming /auth/login body:', req.body);
-    // support both frontends that send { email, phone, password } or { emailOrPhone, password }
-    const { email, phone, emailOrPhone, password } = req.body;
-    const credential = (emailOrPhone || email || phone || '').trim();
-    console.log('Parsed credential for login:', credential ? credential : '(empty)');
+    // support both frontends that send { email, phone, password } or { emailOrPhone, password } or { credential, password }
+    const { email, phone, emailOrPhone, credential, password } = req.body;
+    const cred = (credential || emailOrPhone || email || phone || '').trim();
+    console.log('Parsed credential for login:', cred ? cred : '(empty)');
 
-    if (!credential || !password) return res.status(400).json({ error: 'Missing credentials' });
+    if (!cred || !password) return res.status(400).json({ error: 'Missing credentials' });
 
-    const user = await User.findOne({ $or: [{ email: credential }, { phone: credential }] });
+    const user = await User.findOne({ $or: [{ email: cred }, { phone: cred }] });
     if (!user) return res.status(400).json({ error: 'Invalid credentials' });
 
     const match = await bcrypt.compare(password, user.password);
