@@ -25,19 +25,17 @@ async function saveUploadedFile(file?: Express.Multer.File) {
 // GET /api/content/news - Get all news
 router.get('/news', async (req, res) => {
   try {
-    const news = await News.find({ published: true }).sort({ createdAt: -1 }).lean();
+    const news = await News.find({ status: 'published' }).sort({ created_at: -1 }).lean();
     res.json(news.map(item => ({
-      id: item._id.toString(),
+      id: item._id?.toString(),
       title: item.title || '',
-      description: item.description || '',
       content: item.content || '',
-      hasImage: !!item.imageUrl,
-      imageUrl: item.imageUrl || null,
-      audience: item.audience || 'both',
-      published: item.published !== false,
+      hasImage: !!item.image_data,
+      audience: item.audience || item.target_audience || 'all',
+      published: item.status === 'published',
       type: 'news',
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
     })));
   } catch (err) {
     console.error('GET /news error:', err);
@@ -48,22 +46,21 @@ router.get('/news', async (req, res) => {
 // GET /api/content/events - Get all events
 router.get('/events', async (req, res) => {
   try {
-    const events = await Event.find({ published: true }).sort({ eventDate: -1 }).lean();
+    const events = await Event.find({ status: { $ne: 'draft' } }).sort({ event_date: -1 }).lean();
     res.json(events.map(item => ({
-      id: item._id.toString(),
+      id: item._id?.toString(),
       title: item.title || '',
       description: item.description || '',
-      content: item.content || '',
-      hasImage: !!item.imageUrl,
-      imageUrl: item.imageUrl || null,
-      audience: item.audience || 'both',
-      date: item.eventDate,
-      time: item.eventTime,
+      hasImage: !!item.image_url || !!item.image_data,
+      imageUrl: item.image_url || null,
+      audience: item.audience || item.target_audience || 'all',
+      date: item.event_date,
+      time: item.event_time,
       location: item.location || '',
-      published: item.published !== false,
+      published: item.status !== 'draft',
       type: 'events',
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
     })));
   } catch (err) {
     console.error('GET /events error:', err);
@@ -74,31 +71,28 @@ router.get('/events', async (req, res) => {
 // POST /api/content/news - Create news (admin/alumni_office only)
 router.post('/news', authenticate, authorize(['admin', 'alumni_office']), upload.single('image'), async (req, res) => {
   try {
-    const { title, description, content, audience, published } = req.body;
+    const { title, content, audience, status } = req.body;
     const imageUrl = await saveUploadedFile(req.file);
 
     const news = new News({
       title,
-      description,
       content,
-      imageUrl,
-      audience: audience || 'both',
-      published: published !== 'false',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      image_data: imageUrl,
+      audience: audience || 'all',
+      status: status || 'published',
+      author_id: (req as any).user.id,
     });
 
     await news.save();
     res.status(201).json({
-      id: news._id.toString(),
+      id: news._id?.toString(),
       title: news.title,
-      description: news.description,
       content: news.content,
-      imageUrl: news.imageUrl,
+      image_data: news.image_data,
       audience: news.audience,
-      published: news.published,
-      createdAt: news.createdAt,
-      updatedAt: news.updatedAt,
+      status: news.status,
+      created_at: news.created_at,
+      updated_at: news.updated_at,
     });
   } catch (err) {
     console.error('POST /news error:', err);
@@ -109,37 +103,34 @@ router.post('/news', authenticate, authorize(['admin', 'alumni_office']), upload
 // POST /api/content/events - Create event (admin/alumni_office only)
 router.post('/events', authenticate, authorize(['admin', 'alumni_office']), upload.single('image'), async (req, res) => {
   try {
-    const { title, description, content, eventDate, eventTime, location, audience, published } = req.body;
+    const { title, description, event_date, event_time, location, audience, status } = req.body;
     const imageUrl = await saveUploadedFile(req.file);
 
     const event = new Event({
       title,
       description,
-      content,
-      imageUrl,
-      eventDate: eventDate ? new Date(eventDate) : null,
-      eventTime,
+      image_url: imageUrl,
+      event_date: event_date ? new Date(event_date) : new Date(),
+      event_time,
       location,
-      audience: audience || 'both',
-      published: published !== 'false',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      audience: audience || 'all',
+      status: status || 'published',
+      organizer_id: (req as any).user.id,
     });
 
     await event.save();
     res.status(201).json({
-      id: event._id.toString(),
+      id: event._id?.toString(),
       title: event.title,
       description: event.description,
-      content: event.content,
-      imageUrl: event.imageUrl,
-      eventDate: event.eventDate,
-      eventTime: event.eventTime,
+      image_url: event.image_url,
+      event_date: event.event_date,
+      event_time: event.event_time,
       location: event.location,
       audience: event.audience,
-      published: event.published,
-      createdAt: event.createdAt,
-      updatedAt: event.updatedAt,
+      status: event.status,
+      created_at: event.created_at,
+      updated_at: event.updated_at,
     });
   } catch (err) {
     console.error('POST /events error:', err);
@@ -150,19 +141,18 @@ router.post('/events', authenticate, authorize(['admin', 'alumni_office']), uplo
 // PUT /api/content/news/:id - Update news
 router.put('/news/:id', authenticate, authorize(['admin', 'alumni_office']), upload.single('image'), async (req, res) => {
   try {
-    const { title, description, content, audience, published } = req.body;
+    const { title, content, audience, status } = req.body;
     const imageUrl = await saveUploadedFile(req.file);
 
     const news = await News.findByIdAndUpdate(
       req.params.id,
       {
         title,
-        description,
         content,
-        ...(imageUrl && { imageUrl }),
-        audience: audience || 'both',
-        published: published !== 'false',
-        updatedAt: new Date(),
+        ...(imageUrl && { image_data: imageUrl }),
+        audience: audience || 'all',
+        status: status || 'published',
+        updated_at: new Date(),
       },
       { new: true }
     );
@@ -178,7 +168,7 @@ router.put('/news/:id', authenticate, authorize(['admin', 'alumni_office']), upl
 // PUT /api/content/events/:id - Update event
 router.put('/events/:id', authenticate, authorize(['admin', 'alumni_office']), upload.single('image'), async (req, res) => {
   try {
-    const { title, description, content, eventDate, eventTime, location, audience, published } = req.body;
+    const { title, description, event_date, event_time, location, audience, status } = req.body;
     const imageUrl = await saveUploadedFile(req.file);
 
     const event = await Event.findByIdAndUpdate(
@@ -186,14 +176,13 @@ router.put('/events/:id', authenticate, authorize(['admin', 'alumni_office']), u
       {
         title,
         description,
-        content,
-        ...(imageUrl && { imageUrl }),
-        eventDate: eventDate ? new Date(eventDate) : undefined,
-        eventTime,
+        ...(imageUrl && { image_url: imageUrl }),
+        event_date: event_date ? new Date(event_date) : undefined,
+        event_time,
         location,
-        audience: audience || 'both',
-        published: published !== 'false',
-        updatedAt: new Date(),
+        audience: audience || 'all',
+        status: status || 'published',
+        updated_at: new Date(),
       },
       { new: true }
     );
