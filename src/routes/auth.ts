@@ -9,6 +9,8 @@ dotenv.config();
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
 
+console.log('Auth route loaded. JWT_SECRET is set:', !!process.env.JWT_SECRET, 'Using secret:', JWT_SECRET === process.env.JWT_SECRET ? 'FROM ENV' : 'DEFAULT FALLBACK');
+
 const genToken = (payload: object) => jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 
 // --- REGISTER ---

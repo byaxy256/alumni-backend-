@@ -8,7 +8,10 @@ export const authenticate = (req, res, next) => {
     if (!token) return res.sendStatus(401);
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.sendStatus(403);
+        if (err) {
+            console.error('JWT verification failed:', err.message, 'Using secret:', JWT_SECRET === process.env.JWT_SECRET ? 'FROM ENV' : 'DEFAULT');
+            return res.sendStatus(403);
+        }
         (req as any).user = user;
         next();
     });
