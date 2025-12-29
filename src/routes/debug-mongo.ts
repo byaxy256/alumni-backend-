@@ -65,8 +65,9 @@ router.get('/news/:id', authenticate, async (req, res) => {
 
     const info: any = { id: n._id?.toString(), image_data_type: typeof n.image_data, image_mime: n.image_mime };
     if (typeof n.image_data === 'string') {
-      const p = n.image_data.startsWith('/') ? path.join(process.cwd(), n.image_data.replace(/^\//, '')) : null;
-      info.image_path = n.image_data;
+      const imageData: string = String(n.image_data);
+      const p = imageData.startsWith('/') ? path.join(process.cwd(), imageData.replace(/^\//, '')) : null;
+      info.image_path = imageData;
       if (p && fsSync.existsSync(p)) {
         const st = fsSync.statSync(p);
         info.file_exists = true;
