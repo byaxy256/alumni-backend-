@@ -16,18 +16,6 @@ router.get('/', authenticate, authorize(['admin', 'alumni_office']), async (req,
   }
 });
 
-// GET /api/support/:id - Get specific support request
-router.get('/:id', authenticate, async (req, res) => {
-  try {
-    const request = await SupportRequest.findById(req.params.id);
-    if (!request) return res.status(404).json({ error: 'Support request not found' });
-    res.json(request);
-  } catch (err) {
-    console.error('GET /support/:id error:', err);
-    res.status(500).json({ error: 'Failed to fetch support request' });
-  }
-});
-
 // GET /api/support/user/:student_uid - Get requests for a specific student
 router.get('/user/:student_uid', authenticate, authorize(['admin', 'alumni_office']), async (req, res) => {
   try {
@@ -50,6 +38,18 @@ router.get('/mine', authenticate, async (req, res) => {
     console.error('GET /support/mine error:', err);
     // Fail-safe: return empty array so frontend doesn't break if there's a transient DB issue
     return res.json([]);
+  }
+});
+
+// GET /api/support/:id - Get specific support request
+router.get('/:id', authenticate, async (req, res) => {
+  try {
+    const request = await SupportRequest.findById(req.params.id);
+    if (!request) return res.status(404).json({ error: 'Support request not found' });
+    res.json(request);
+  } catch (err) {
+    console.error('GET /support/:id error:', err);
+    res.status(500).json({ error: 'Failed to fetch support request' });
   }
 });
 
