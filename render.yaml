@@ -3,7 +3,8 @@ services:
     name: alumni-circle-backend
     runtime: node
     buildCommand: npm install && npm run build
-    startCommand: npm start
+    # Explicit start command to match compiled output (dist/index.js)
+    startCommand: node dist/index.js
     envVars:
       - key: NODE_ENV
         value: production
