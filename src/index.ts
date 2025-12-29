@@ -14,10 +14,12 @@ import uploadRoutes from './routes/upload.js';
 import contentRoutes from './routes/content-mongo.js';
 import mentorRoutes from './routes/mentors-mongo.js';
 import supportRoutes from './routes/support-mongo.js';
+import debugRoutes from './routes/debug-mongo.js';
 import chatsRoutes from './routes/chats-mongo.js';
 import applicationsRoutes from './routes/applications-mongo.js';
 import disburseRoutes from './routes/disburse-mongo.js';
 import paymentsRoutes from './routes/payments-mongo.js';
+
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
@@ -73,6 +75,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/mentors', mentorRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/debug', debugRoutes);
 app.use('/api/chat', chatsRoutes);
 app.use('/api/applications', applicationsRoutes);
 app.use('/api/disburse', disburseRoutes);
@@ -114,4 +117,4 @@ connectMongoDB().then(success => {
 }).catch(err => {
   console.error('MongoDB initialization failed:', err);
   process.exit(1);
-});
+}); 
