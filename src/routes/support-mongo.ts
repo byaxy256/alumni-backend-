@@ -48,7 +48,8 @@ router.get('/mine', authenticate, async (req, res) => {
     res.json(requests || []);
   } catch (err) {
     console.error('GET /support/mine error:', err);
-    res.status(500).json({ error: 'Failed to fetch your support requests' });
+    // Fail-safe: return empty array so frontend doesn't break if there's a transient DB issue
+    return res.json([]);
   }
 });
 
