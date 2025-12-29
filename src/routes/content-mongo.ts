@@ -228,9 +228,11 @@ router.get('/news/:id/image', async (req, res) => {
 
     // image_data may be a static path (string) or a Buffer stored in DB
     if (typeof news.image_data === 'string') {
+      // Cast to string and check first char safely (avoids TS issues with startsWith)
+      const imageData: string = String(news.image_data);
       // If stored path is local (starts with /uploads), serve file directly so Content-Length is correct
-      if (news.image_data.startsWith('/')) {
-        const filePath = path.join(process.cwd(), news.image_data.replace(/^\//, ''));
+      if (imageData && imageData.charAt(0) === '/') {
+        const filePath = path.join(process.cwd(), imageData.replace(/^\//, ''));
         if (fsSync.existsSync(filePath)) {
           const stat = fsSync.statSync(filePath);
           const mime = news.image_mime || 'application/octet-stream';
@@ -239,10 +241,23 @@ router.get('/news/:id/image', async (req, res) => {
           const stream = fsSync.createReadStream(filePath);
           return stream.pipe(res);
         }
+
+        // Fallback: try alternate directory name 'contents' vs 'content'
+        const altPath = filePath.replace(path.join('uploads', 'content'), path.join('uploads', 'contents'));
+        if (fsSync.existsSync(altPath)) {
+          const stat = fsSync.statSync(altPath);
+          const mime = news.image_mime || 'application/octet-stream';
+          res.setHeader('Content-Type', mime);
+          res.setHeader('Content-Length', String(stat.size));
+          const stream = fsSync.createReadStream(altPath);
+          // Optionally update DB to new canonical path, but avoid doing that here automatically.
+          return stream.pipe(res);
+        }
+
         // fallback to redirect if file missing
-        return res.redirect(news.image_data);
+        return res.redirect(imageData);
       }
-      return res.redirect(news.image_data);
+      return res.redirect(imageData);
     }
 
     // Buffer -> stream bytes with mime if available
@@ -269,8 +284,9 @@ router.get('/events/:id/image', async (req, res) => {
     }
 
     if (typeof event.image_data === 'string') {
-      if (event.image_data.startsWith('/')) {
-        const filePath = path.join(process.cwd(), event.image_data.replace(/^\//, ''));
+      const imageData: string = String(event.image_data);
+      if (imageData && imageData.charAt(0) === '/') {
+        const filePath = path.join(process.cwd(), imageData.replace(/^\//, ''));
         if (fsSync.existsSync(filePath)) {
           const stat = fsSync.statSync(filePath);
           const mime = event.image_mime || 'application/octet-stream';
@@ -279,9 +295,21 @@ router.get('/events/:id/image', async (req, res) => {
           const stream = fsSync.createReadStream(filePath);
           return stream.pipe(res);
         }
-        return res.redirect(event.image_data);
+
+        // Fallback to check 'contents' dir
+        const altPath = filePath.replace(path.join('uploads', 'content'), path.join('uploads', 'contents'));
+        if (fsSync.existsSync(altPath)) {
+          const stat = fsSync.statSync(altPath);
+          const mime = event.image_mime || 'application/octet-stream';
+          res.setHeader('Content-Type', mime);
+          res.setHeader('Content-Length', String(stat.size));
+          const stream = fsSync.createReadStream(altPath);
+          return stream.pipe(res);
+        }
+
+        return res.redirect(imageData);
       }
-      return res.redirect(event.image_data);
+      return res.redirect(imageData);
     }
 
     // Buffer stored
