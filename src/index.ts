@@ -1,4 +1,4 @@
-// src/index.ts
+// src/index.ts - All routes now using MongoDB
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
