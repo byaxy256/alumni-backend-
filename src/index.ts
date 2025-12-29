@@ -58,8 +58,14 @@ app.use(`/${UPLOAD_DIR}`, express.static(uploadPath));
 
 // Mount routes
 console.log('🔌 Mounting routes...');
+console.log('authRoutes:', typeof authRoutes);
 console.log('contentRoutes:', typeof contentRoutes);
 console.log('supportRoutes:', typeof supportRoutes);
+
+if (!contentRoutes || typeof contentRoutes !== 'object') {
+  console.error('❌ ERROR: contentRoutes is not valid!', contentRoutes);
+}
+
 app.use('/api/auth', authRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/notifications', notificationRoutes);
