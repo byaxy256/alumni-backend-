@@ -43,12 +43,35 @@ router.get('/my-mentors', authenticate, authorize(['student']), async (req, res)
     const user = await User.findById(userId).lean();
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const approvedMentorIds = (user.meta && user.meta.approved_mentors) || [];
-    if (!Array.isArray(approvedMentorIds) || approvedMentorIds.length === 0) return res.json([]);
+    const approvedMentorIds = Array.isArray(user?.meta?.approved_mentors) ? user.meta.approved_mentors : [];
+    if (approvedMentorIds.length === 0) return res.json([]);
 
-    // Ensure ids are strings
-    const ids = approvedMentorIds.map((id: any) => id.toString());
-    const mentors = await User.find({ _id: { $in: ids } }).select('-password').lean();
+    // Normalize possible id shapes to string ids that Mongo can use
+    const ids = approvedMentorIds.map((id: any) => {
+      try {
+        if (!id) return null;
+        if (typeof id === 'string') return id;
+        if (typeof id === 'object') {
+          if (id._id) return id._id.toString();
+          if (id.id) return id.id.toString();
+          if (id.uid) return id.uid; // maybe stored as uid
+          return id.toString();
+        }
+        return String(id);
+      } catch (e) {
+        return null;
+      }
+    }).filter(Boolean as any);
+
+    if (ids.length === 0) return res.json([]);
+
+    let mentors;
+    try {
+      mentors = await User.find({ _id: { $in: ids } }).select('-password').lean();
+    } catch (dbErr) {
+      console.error('DB error fetching mentors for ids:', ids, dbErr);
+      return res.status(500).json({ error: 'Failed to fetch mentors' });
+    }
 
     // Map to frontend Mentor shape (same mapping as GET /api/mentors)
     const mapped = mentors.map((u: any) => ({
@@ -57,11 +80,11 @@ router.get('/my-mentors', authenticate, authorize(['student']), async (req, res)
       title: u.meta?.title || '',
       company: u.meta?.company || '',
       location: u.meta?.location || '',
-      rating: u.meta?.rating || 4.5,
+      rating: (u.meta && typeof u.meta.rating === 'number') ? u.meta.rating : 4.5,
       mentees: Array.isArray(u.meta?.approved_mentees) ? u.meta.approved_mentees.length : 0,
       classOf: u.meta?.classOf || (u.meta?.graduationYear || null),
       bio: u.meta?.bio || '',
-      tags: u.meta?.tags || [],
+      tags: Array.isArray(u.meta?.tags) ? u.meta.tags : [],
       status: u.meta?.status || 'available',
       field: u.meta?.field || u.meta?.course || '',
       expertise: Array.isArray(u.meta?.expertise) ? u.meta.expertise : (u.meta?.expertise ? [u.meta.expertise] : []),
