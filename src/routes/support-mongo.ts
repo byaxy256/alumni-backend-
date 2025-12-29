@@ -39,6 +39,19 @@ router.get('/user/:student_uid', authenticate, authorize(['admin', 'alumni_offic
   }
 });
 
+// GET /api/support/mine - Get requests for current student
+router.get('/mine', authenticate, async (req, res) => {
+  try {
+    const studentUid = (req as any).user.uid;
+    if (!studentUid) return res.status(400).json({ error: 'Could not identify user' });
+    const requests = await SupportRequest.find({ student_uid: studentUid }).sort({ created_at: -1 }).lean();
+    res.json(requests || []);
+  } catch (err) {
+    console.error('GET /support/mine error:', err);
+    res.status(500).json({ error: 'Failed to fetch your support requests' });
+  }
+});
+
 // POST /api/support - Create a new support request
 router.post('/', authenticate, async (req, res) => {
   try {

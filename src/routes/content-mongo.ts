@@ -3,6 +3,7 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import { News } from '../models/News.js';
 import { Event } from '../models/Event.js';
 import { authenticate, authorize } from '../middleware/auth.js';
@@ -227,6 +228,20 @@ router.get('/news/:id/image', async (req, res) => {
 
     // image_data may be a static path (string) or a Buffer stored in DB
     if (typeof news.image_data === 'string') {
+      // If stored path is local (starts with /uploads), serve file directly so Content-Length is correct
+      if (news.image_data.startsWith('/')) {
+        const filePath = path.join(process.cwd(), news.image_data.replace(/^\//, ''));
+        if (fsSync.existsSync(filePath)) {
+          const stat = fsSync.statSync(filePath);
+          const mime = news.image_mime || 'application/octet-stream';
+          res.setHeader('Content-Type', mime);
+          res.setHeader('Content-Length', String(stat.size));
+          const stream = fsSync.createReadStream(filePath);
+          return stream.pipe(res);
+        }
+        // fallback to redirect if file missing
+        return res.redirect(news.image_data);
+      }
       return res.redirect(news.image_data);
     }
 
@@ -234,6 +249,7 @@ router.get('/news/:id/image', async (req, res) => {
     const buf: Buffer = Buffer.isBuffer(news.image_data) ? news.image_data : Buffer.from(news.image_data);
     const mime = news.image_mime || 'application/octet-stream';
     res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Length', String(buf.length));
     return res.send(buf);
   } catch (err) {
     console.error('GET /news/:id/image error:', err);
@@ -248,10 +264,23 @@ router.get('/events/:id/image', async (req, res) => {
     if (!event || !(event.image_url || event.image_data)) return res.status(404).json({ error: 'Image not found' });
 
     if (event.image_url && typeof event.image_url === 'string') {
+      // external URL
       return res.redirect(event.image_url);
     }
 
     if (typeof event.image_data === 'string') {
+      if (event.image_data.startsWith('/')) {
+        const filePath = path.join(process.cwd(), event.image_data.replace(/^\//, ''));
+        if (fsSync.existsSync(filePath)) {
+          const stat = fsSync.statSync(filePath);
+          const mime = event.image_mime || 'application/octet-stream';
+          res.setHeader('Content-Type', mime);
+          res.setHeader('Content-Length', String(stat.size));
+          const stream = fsSync.createReadStream(filePath);
+          return stream.pipe(res);
+        }
+        return res.redirect(event.image_data);
+      }
       return res.redirect(event.image_data);
     }
 
@@ -259,6 +288,7 @@ router.get('/events/:id/image', async (req, res) => {
     const buf: Buffer = Buffer.isBuffer(event.image_data) ? event.image_data : Buffer.from(event.image_data);
     const mime = event.image_mime || 'application/octet-stream';
     res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Length', String(buf.length));
     return res.send(buf);
   } catch (err) {
     console.error('GET /events/:id/image error:', err);
