@@ -67,7 +67,14 @@ router.get('/my-mentors', authenticate, authorize(['student']), async (req, res)
 
     let mentors;
     try {
-      mentors = await User.find({ _id: { $in: ids } }).select('-password').lean();
+      // ids may contain Mongo _id strings (24 hex) or UIDs like 'u12345'.
+      const objectIds = ids.filter((s: string) => /^[a-fA-F0-9]{24}$/.test(s));
+      const uidIds = ids; // match against uid field as well
+      const query: any = { $or: [] };
+      if (objectIds.length) query.$or.push({ _id: { $in: objectIds } });
+      if (uidIds.length) query.$or.push({ uid: { $in: uidIds } });
+      if (query.$or.length === 0) return res.json([]);
+      mentors = await User.find(query).select('-password').lean();
     } catch (dbErr) {
       console.error('DB error fetching mentors for ids:', ids, dbErr);
       return res.status(500).json({ error: 'Failed to fetch mentors' });
