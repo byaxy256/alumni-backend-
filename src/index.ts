@@ -105,9 +105,8 @@ connectMongoDB().then(success => {
     console.error('Failed to connect to MongoDB. Exiting...');
     process.exit(1);
   }
-  
+
   // Start server only after MongoDB connects
-  // Bind to 0.0.0.0 for Render deployment
   const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
   app.listen(PORT, HOST, () => {
     console.log(`🚀 Server is running on port ${PORT}`);

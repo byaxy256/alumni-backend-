@@ -7,8 +7,6 @@ import { News } from '../models/News.js';
 import { Event } from '../models/Event.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
-console.log('🟢 content-mongo.ts: Loading... News=' + typeof News + ', Event=' + typeof Event);
-
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';

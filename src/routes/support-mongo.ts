@@ -3,8 +3,6 @@ import express from 'express';
 import { SupportRequest } from '../models/SupportRequest.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
-console.log('🟢 support-mongo.ts: Loading... SupportRequest=' + typeof SupportRequest);
-
 const router = express.Router();
 
 // GET /api/support - Get all support requests (admin/alumni_office only)
