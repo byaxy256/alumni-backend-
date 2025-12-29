@@ -75,6 +75,9 @@ console.log('✅ All routes mounted successfully');
 // root
 app.get('/', (req, res) => res.send('UCU Alumni Circle Server Running - MongoDB Only'));
 
+// Test route
+app.get('/api/test', (req, res) => res.json({ message: 'Test route working', timestamp: new Date() }));
+
 // Legacy alias routes - TODO: Re-enable after payments route conversion
 // app.get('/api/funds/mine', (req, res) => res.redirect(307, '/api/payments/mine'));
 // app.get('/api/transactions/mine', (req, res) => res.redirect(307, '/api/payments/mine'));
