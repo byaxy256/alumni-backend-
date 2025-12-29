@@ -1,7 +1,7 @@
 // src/routes/mentors-mongo.ts - MongoDB-based mentorship
 import express from 'express';
 import { User } from '../models/User.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -17,16 +17,18 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // GET /api/mentors/my-mentors - Get mentors for current student
-router.get('/my-mentors', authenticate, async (req, res) => {
+router.get('/my-mentors', authenticate, authorize(['student']), async (req, res) => {
   try {
-    const user = await User.findById((req as any).user.id).lean();
-    const approvedMentorIds = user?.meta?.approved_mentors || [];
-    
-    if (approvedMentorIds.length === 0) {
-      return res.json([]);
-    }
+    const userId = (req as any).user.id;
+    const user = await User.findById(userId).lean();
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const mentors = await User.find({ _id: { $in: approvedMentorIds } }).select('-password').lean();
+    const approvedMentorIds = (user.meta && user.meta.approved_mentors) || [];
+    if (!Array.isArray(approvedMentorIds) || approvedMentorIds.length === 0) return res.json([]);
+
+    // Ensure ids are strings
+    const ids = approvedMentorIds.map((id: any) => id.toString());
+    const mentors = await User.find({ _id: { $in: ids } }).select('-password').lean();
     res.json(mentors);
   } catch (err) {
     console.error('GET /my-mentors error:', err);
@@ -35,33 +37,33 @@ router.get('/my-mentors', authenticate, async (req, res) => {
 });
 
 // POST /api/mentors/request - Request a mentor
-router.post('/request', authenticate, async (req, res) => {
+router.post('/request', authenticate, authorize(['student']), async (req, res) => {
   try {
     const { mentorId } = req.body;
     const userId = (req as any).user.id;
-
     const student = await User.findById(userId);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
     const mentor = await User.findById(mentorId);
+    if (!mentor || mentor.role !== 'alumni') return res.status(404).json({ error: 'Mentor not found' });
 
-    if (!mentor || mentor.role !== 'alumni') {
-      return res.status(404).json({ error: 'Mentor not found' });
+    // Add to student's pending_mentors (store ids as strings)
+    if (!student.meta) student.meta = {};
+    if (!Array.isArray(student.meta.pending_mentors)) student.meta.pending_mentors = [];
+    const pendingMentors = student.meta.pending_mentors.map((id: any) => id.toString());
+    if (!pendingMentors.includes(mentor._id.toString())) {
+      student.meta.pending_mentors.push(mentor._id.toString());
+      await student.save();
     }
-
-    // Add to student's pending_mentors
-    if (!student!.meta) student!.meta = {};
-    if (!student!.meta.pending_mentors) student!.meta.pending_mentors = [];
-    if (!student!.meta.pending_mentors.includes(mentorId)) {
-      student!.meta.pending_mentors.push(mentorId);
-    }
-    await student!.save();
 
     // Add to mentor's pending_requests
     if (!mentor.meta) mentor.meta = {};
-    if (!mentor.meta.pending_requests) mentor.meta.pending_requests = [];
-    if (!mentor.meta.pending_requests.includes(userId)) {
-      mentor.meta.pending_requests.push(userId);
+    if (!Array.isArray(mentor.meta.pending_requests)) mentor.meta.pending_requests = [];
+    const pendingReqs = mentor.meta.pending_requests.map((id: any) => id.toString());
+    if (!pendingReqs.includes(student._id.toString())) {
+      mentor.meta.pending_requests.push(student._id.toString());
+      await mentor.save();
     }
-    await mentor.save();
 
     res.json({ message: 'Mentor request sent' });
   } catch (err) {
@@ -71,31 +73,30 @@ router.post('/request', authenticate, async (req, res) => {
 });
 
 // POST /api/mentors/approve - Approve a mentee request
-router.post('/approve', authenticate, async (req, res) => {
+router.post('/approve', authenticate, authorize(['alumni']), async (req, res) => {
   try {
     const { studentId } = req.body;
     const mentorId = (req as any).user.id;
-
     const mentor = await User.findById(mentorId);
     const student = await User.findById(studentId);
-
+    if (!mentor) return res.status(404).json({ error: 'Mentor not found' });
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
     // Move from pending to approved for mentor
-    if (!mentor!.meta) mentor!.meta = {};
-    if (!mentor!.meta.approved_mentees) mentor!.meta.approved_mentees = [];
-    mentor!.meta.pending_requests = mentor!.meta.pending_requests?.filter((id: any) => id.toString() !== studentId) || [];
-    if (!mentor!.meta.approved_mentees.includes(studentId)) {
-      mentor!.meta.approved_mentees.push(studentId);
+    if (!mentor.meta) mentor.meta = {};
+    if (!Array.isArray(mentor.meta.approved_mentees)) mentor.meta.approved_mentees = [];
+    mentor.meta.pending_requests = (mentor.meta.pending_requests || []).filter((id: any) => id.toString() !== studentId);
+    if (!mentor.meta.approved_mentees.map((id: any) => id.toString()).includes(student._id.toString())) {
+      mentor.meta.approved_mentees.push(student._id.toString());
     }
-    await mentor!.save();
+    await mentor.save();
 
     // Move from pending to approved for student
     if (!student.meta) student.meta = {};
-    if (!student.meta.approved_mentors) student.meta.approved_mentors = [];
-    student.meta.pending_mentors = student.meta.pending_mentors?.filter((id: any) => id.toString() !== mentorId) || [];
-    if (!student.meta.approved_mentors.includes(mentorId)) {
-      student.meta.approved_mentors.push(mentorId);
+    if (!Array.isArray(student.meta.approved_mentors)) student.meta.approved_mentors = [];
+    student.meta.pending_mentors = (student.meta.pending_mentors || []).filter((id: any) => id.toString() !== mentorId);
+    if (!student.meta.approved_mentors.map((id: any) => id.toString()).includes(mentor._id.toString())) {
+      student.meta.approved_mentors.push(mentor._id.toString());
     }
     await student.save();
 
@@ -107,7 +108,7 @@ router.post('/approve', authenticate, async (req, res) => {
 });
 
 // POST /api/mentors/reject - Reject a mentee request
-router.post('/reject', authenticate, async (req, res) => {
+router.post('/reject', authenticate, authorize(['alumni']), async (req, res) => {
   try {
     const { studentId } = req.body;
     const mentorId = (req as any).user.id;
@@ -116,7 +117,7 @@ router.post('/reject', authenticate, async (req, res) => {
     if (!mentor) return res.status(404).json({ error: 'Mentor not found' });
 
     if (!mentor.meta) mentor.meta = {};
-    mentor.meta.pending_requests = mentor.meta.pending_requests?.filter((id: any) => id.toString() !== studentId) || [];
+    mentor.meta.pending_requests = (mentor.meta.pending_requests || []).filter((id: any) => id.toString() !== studentId);
     await mentor.save();
 
     res.json({ message: 'Mentee request rejected' });
@@ -127,16 +128,17 @@ router.post('/reject', authenticate, async (req, res) => {
 });
 
 // GET /api/mentors/my-approved-mentees - Get mentor's approved mentees
-router.get('/my-approved-mentees', authenticate, async (req, res) => {
+router.get('/my-approved-mentees', authenticate, authorize(['alumni']), async (req, res) => {
   try {
-    const mentor = await User.findById((req as any).user.id).lean();
-    const approvedMenteeIds = mentor?.meta?.approved_mentees || [];
-    
-    if (approvedMenteeIds.length === 0) {
-      return res.json([]);
-    }
+    const mentorId = (req as any).user.id;
+    const mentor = await User.findById(mentorId).lean();
+    if (!mentor) return res.status(404).json({ error: 'Mentor not found' });
 
-    const mentees = await User.find({ _id: { $in: approvedMenteeIds } }).select('-password').lean();
+    const approvedMenteeIds = (mentor.meta && mentor.meta.approved_mentees) || [];
+    if (!Array.isArray(approvedMenteeIds) || approvedMenteeIds.length === 0) return res.json([]);
+
+    const ids = approvedMenteeIds.map((id: any) => id.toString());
+    const mentees = await User.find({ _id: { $in: ids } }).select('-password').lean();
     res.json(mentees);
   } catch (err) {
     console.error('GET /my-approved-mentees error:', err);
@@ -145,7 +147,7 @@ router.get('/my-approved-mentees', authenticate, async (req, res) => {
 });
 
 // POST /api/mentors/remove-approved - Remove an approved mentee
-router.post('/remove-approved', authenticate, async (req, res) => {
+router.post('/remove-approved', authenticate, authorize(['alumni']), async (req, res) => {
   try {
     const { studentId } = req.body;
     const mentorId = (req as any).user.id;
@@ -154,13 +156,13 @@ router.post('/remove-approved', authenticate, async (req, res) => {
     if (!mentor) return res.status(404).json({ error: 'Mentor not found' });
 
     if (!mentor.meta) mentor.meta = {};
-    mentor.meta.approved_mentees = mentor.meta.approved_mentees?.filter((id: any) => id.toString() !== studentId) || [];
+    mentor.meta.approved_mentees = (mentor.meta.approved_mentees || []).filter((id: any) => id.toString() !== studentId);
     await mentor.save();
 
     const student = await User.findById(studentId);
     if (student) {
       if (!student.meta) student.meta = {};
-      student.meta.approved_mentors = student.meta.approved_mentors?.filter((id: any) => id.toString() !== mentorId) || [];
+      student.meta.approved_mentors = (student.meta.approved_mentors || []).filter((id: any) => id.toString() !== mentorId);
       await student.save();
     }
 
