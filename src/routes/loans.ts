@@ -68,7 +68,19 @@ router.get('/mine', authenticate, async (req, res) => {
       .sort({ created_at: -1 })
       .lean();
     
-    res.json(loans.map(loan => ({ ...loan, id: loan._id.toString() })));
+    // Normalize response to include amount_requested for frontend compatibility
+    const mapped = loans.map(loan => ({
+      id: loan._id.toString(),
+      amount_requested: loan.amount,
+      outstanding_balance: loan.outstanding_balance,
+      status: loan.status,
+      created_at: loan.created_at,
+      repaymentPeriod: (loan as any).repaymentPeriod,
+      chopConsented: (loan as any).consentFullChop || false,
+      raw: loan
+    }));
+
+    res.json(mapped);
   } catch (err) {
     console.error('GET /loans/mine error:', err);
     res.status(500).json({ error: 'Server error' });

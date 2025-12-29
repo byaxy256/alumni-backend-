@@ -9,7 +9,27 @@ const router = express.Router();
 router.get('/', authenticate, async (req, res) => {
   try {
     const mentors = await User.find({ role: 'alumni' }).select('-password').lean();
-    res.json(mentors);
+
+    // Map User documents to frontend-friendly Mentor shape
+    const mapped = mentors.map((u: any) => ({
+      id: u._id?.toString(),
+      name: u.full_name || '',
+      title: u.meta?.title || '',
+      company: u.meta?.company || '',
+      location: u.meta?.location || '',
+      rating: u.meta?.rating || 4.5,
+      mentees: Array.isArray(u.meta?.approved_mentees) ? u.meta.approved_mentees.length : 0,
+      classOf: u.meta?.classOf || (u.meta?.graduationYear || null),
+      bio: u.meta?.bio || '',
+      tags: u.meta?.tags || [],
+      status: u.meta?.status || 'available',
+      field: u.meta?.field || u.meta?.course || '',
+      expertise: Array.isArray(u.meta?.expertise) ? u.meta.expertise : (u.meta?.expertise ? [u.meta.expertise] : []),
+      experience: u.meta?.experience || 0,
+      maxMentees: u.meta?.maxMentees || 10,
+    }));
+
+    res.json(mapped);
   } catch (err) {
     console.error('GET /mentors error:', err);
     res.status(500).json({ error: 'Failed to fetch mentors' });
