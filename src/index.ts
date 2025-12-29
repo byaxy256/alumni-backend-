@@ -57,6 +57,9 @@ fs.ensureDirSync(uploadPath);
 app.use(`/${UPLOAD_DIR}`, express.static(uploadPath));
 
 // Mount routes
+console.log('🔌 Mounting routes...');
+console.log('contentRoutes:', typeof contentRoutes);
+console.log('supportRoutes:', typeof supportRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/notifications', notificationRoutes);
@@ -68,6 +71,7 @@ app.use('/api/chat', chatsRoutes);
 app.use('/api/applications', applicationsRoutes);
 app.use('/api/disburse', disburseRoutes);
 app.use('/api/payments', paymentsRoutes);
+console.log('✅ All routes mounted successfully');
 // root
 app.get('/', (req, res) => res.send('UCU Alumni Circle Server Running - MongoDB Only'));
 
