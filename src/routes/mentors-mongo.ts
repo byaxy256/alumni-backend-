@@ -77,7 +77,8 @@ router.get('/my-mentors', authenticate, authorize(['student']), async (req, res)
       mentors = await User.find(query).select('-password').lean();
     } catch (dbErr) {
       console.error('DB error fetching mentors for ids:', ids, dbErr);
-      return res.status(500).json({ error: 'Failed to fetch mentors' });
+      // Return error details for debugging (temporary)
+      return res.status(500).json({ error: 'Failed to fetch mentors', detail: dbErr.message || String(dbErr) });
     }
 
     // Map to frontend Mentor shape (same mapping as GET /api/mentors)
