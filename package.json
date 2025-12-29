@@ -5,8 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "npm run build && node dist/src/index.js",
-    "dev": "nodemon --watch src --ext ts,js,json --exec \"npm run build && node dist/src/index.js\"",
+    "start": "npm run build && node dist/index.js",
+    "dev": "nodemon --watch src --ext ts,js,json --exec \"npm run build && node dist/index.js\"",
     "fix:events-images": "node fix-events-image-schema.js",
     "migrate": "node --loader ts-node/esm scripts/migrate-to-mongodb.ts"
   },
