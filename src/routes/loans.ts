@@ -44,8 +44,14 @@ router.get('/', async (_req, res) => {
       const user = await User.findOne({ uid: loan.student_uid }).select('full_name email phone meta').lean();
       
       // Try to get data from Application if available (has semester and amount_requested from form)
-      const appData = await Application.findOne({ student_uid: loan.student_uid, type: 'loan' }).sort({ created_at: -1 }).lean();
+      const appData = await Application.findOne({ student_uid: loan.student_uid }).sort({ created_at: -1 }).lean();
       const appPayload = appData?.payload || {};
+      
+      // For amount: use loan.amount if > 0, else try appPayload.amountRequested
+      const amount = loan.amount > 0 ? loan.amount : (appPayload?.amountRequested ? Number(appPayload.amountRequested) : 0);
+      
+      // For semester: prefer user.meta.semester, fallback to appPayload.currentSemester
+      let semester = user?.meta?.semester || appPayload?.currentSemester || '';
       
       return {
         ...loan,
@@ -55,9 +61,9 @@ router.get('/', async (_req, res) => {
         email: user?.email || '',
         phone: user?.phone || appPayload?.phone || '',
         program: user?.meta?.program || appPayload?.program || '',
-        semester: user?.meta?.semester || appPayload?.currentSemester || '',
+        semester: semester,
         university_id: user?.meta?.university_id || appPayload?.studentId || '',
-        amount_requested: loan.amount > 0 ? loan.amount : (appPayload?.amountRequested ? Number(appPayload.amountRequested) : 0),
+        amount_requested: amount,
         purpose: loan.purpose || appPayload?.purpose || '',
         repaymentPeriod: 12,
       };

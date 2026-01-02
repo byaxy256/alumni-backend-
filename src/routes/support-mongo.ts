@@ -18,8 +18,11 @@ router.get('/', async (_req, res) => {
       const user = await User.findOne({ uid: req.student_uid }).select('full_name email phone meta').lean();
       
       // Try to get data from Application if available (has semester from form)
-      const appData = await Application.findOne({ student_uid: req.student_uid, type: 'support' }).sort({ created_at: -1 }).lean();
+      const appData = await Application.findOne({ student_uid: req.student_uid }).sort({ created_at: -1 }).lean();
       const appPayload = appData?.payload || {};
+      
+      // For semester: prefer user.meta.semester, fallback to appPayload.currentSemester
+      let semester = user?.meta?.semester || appPayload?.currentSemester || '';
       
       return {
         ...req,
@@ -29,7 +32,7 @@ router.get('/', async (_req, res) => {
         email: user?.email || '',
         phone: user?.phone || appPayload?.phone || '',
         program: user?.meta?.program || appPayload?.program || '',
-        semester: user?.meta?.semester || appPayload?.currentSemester || '',
+        semester: semester,
         university_id: user?.meta?.university_id || appPayload?.studentId || '',
         amount_requested: req.amount_requested,
         reason: req.reason || '',
