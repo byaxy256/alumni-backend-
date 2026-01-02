@@ -225,6 +225,83 @@ router.get('/my-approved-mentees', authenticate, async (req, res) => {
 });
 
 /**
+ * GET /api/mentors/pending-requests
+ * Alumni → view pending student mentor requests
+ */
+router.get('/pending-requests', authenticate, async (req, res) => {
+  try {
+    if (!(req as any).user) {
+      console.error('GET /pending-requests - req.user is undefined!');
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const userUid = (req as any).user?.uid;
+    const userRole = (req as any).user?.role;
+
+    console.log('GET /pending-requests - User:', { uid: userUid, role: userRole });
+
+    if (!userUid) {
+      return res.status(401).json({ error: 'Invalid user - missing UID in token' });
+    }
+
+    if (userRole !== 'alumni') {
+      return res.status(403).json({ error: `Only alumni can view pending requests. Your role: ${userRole}` });
+    }
+
+    // Get pending mentor assignments where user is the mentor
+    console.log('GET /pending-requests - Querying MentorAssignment with:', { mentor_uid: userUid, status: 'pending' });
+    const assignments = await MentorAssignment.find({
+      mentor_uid: userUid,
+      status: 'pending'
+    }).lean();
+
+    console.log('GET /pending-requests - Found', assignments.length, 'pending assignments');
+
+    if (assignments.length === 0) {
+      console.log('GET /pending-requests - No pending requests found, returning empty array');
+      return res.json([]);
+    }
+
+    // Get student user information
+    const students = await Promise.all(
+      assignments.map(async (assignment) => {
+        try {
+          const student = await User.findOne({ uid: assignment.student_uid })
+            .select('-password')
+            .lean();
+          
+          if (!student) {
+            console.warn('GET /pending-requests - Student not found for UID:', assignment.student_uid);
+            return null;
+          }
+          
+          return {
+            ...mapMentor(student),
+            assignmentId: assignment._id,
+            field: assignment.field,
+            requested_at: assignment.requested_at,
+            course: assignment.field
+          };
+        } catch (err) {
+          console.error('GET /pending-requests - Error fetching student:', err);
+          return null;
+        }
+      })
+    );
+
+    const validStudents = students.filter(Boolean);
+    console.log('GET /pending-requests - Returning', validStudents.length, 'valid pending requests');
+    res.json(validStudents);
+  } catch (err) {
+    console.error('GET /pending-requests error:', err);
+    res.status(500).json({ 
+      error: 'Failed to fetch pending requests',
+      details: process.env.NODE_ENV === 'development' ? (err as Error).message : undefined
+    });
+  }
+});
+
+/**
  * POST /api/mentors/request
  * Student requests a mentor
  */
