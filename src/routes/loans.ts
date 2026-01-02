@@ -44,12 +44,13 @@ router.get('/', async (_req, res) => {
       return {
         ...loan,
         id: loan._id ? loan._id.toString() : loan.sqlId,
-        full_name: user?.full_name || 'N/A',
+        type: 'loan',
+        full_name: user?.full_name || '',
         email: user?.email || '',
         phone: user?.phone || '',
-        program: user?.meta?.program || 'N/A',
-        semester: user?.meta?.semester || 0,
-        university_id: user?.meta?.university_id || 'N/A',
+        program: user?.meta?.program || '',
+        semester: user?.meta?.semester || 1,
+        university_id: user?.meta?.university_id || '',
         amount_requested: loan.amount,
         repaymentPeriod: 12, // Default repayment period
       };

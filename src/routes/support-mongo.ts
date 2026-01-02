@@ -17,13 +17,14 @@ router.get('/', async (_req, res) => {
       return {
         ...req,
         id: req._id ? req._id.toString() : undefined,
-        full_name: user?.full_name || 'N/A',
+        type: 'support',
+        full_name: user?.full_name || '',
         email: user?.email || '',
         phone: user?.phone || '',
-        program: user?.meta?.program || 'N/A',
-        semester: user?.meta?.semester || 0,
-        university_id: user?.meta?.university_id || 'N/A',
-        reason: req.reason || 'N/A',
+        program: user?.meta?.program || '',
+        semester: user?.meta?.semester || 1,
+        university_id: user?.meta?.university_id || '',
+        reason: req.reason || '',
       };
     }));
     
