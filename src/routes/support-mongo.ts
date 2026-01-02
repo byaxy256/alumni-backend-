@@ -14,6 +14,9 @@ router.get('/', async (_req, res) => {
   try {
     const requests = await SupportRequest.find().sort({ created_at: -1 }).lean();
     
+    // Import Payment model
+    const { Payment } = await import('../models/Payment.js');
+    
     // Enrich with user data and application payload data
     const enriched = await Promise.all(requests.map(async (req: any) => {
       const user = await User.findOne({ uid: req.student_uid }).select('full_name email phone meta').lean();
@@ -29,6 +32,14 @@ router.get('/', async (_req, res) => {
         amount = disbursement?.original_amount || 0;
       }
       
+      // Calculate actual outstanding balance from successful payments
+      const payments = await Payment.find({ 
+        support_request_id: req._id.toString(), 
+        status: 'SUCCESSFUL' 
+      }).lean();
+      const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const actualOutstanding = Math.max(0, amount - totalPaid);
+      
       // For semester: prefer user.meta.semester, fallback to appPayload.currentSemester
       let semester = user?.meta?.semester || appPayload?.currentSemester || '';
       
@@ -43,6 +54,8 @@ router.get('/', async (_req, res) => {
         semester: semester,
         university_id: user?.meta?.university_id || appPayload?.studentId || '',
         amount_requested: amount,
+        outstanding_balance: actualOutstanding,
+        total_paid: totalPaid,
         reason: req.reason || '',
       };
     }));
@@ -103,6 +116,7 @@ router.post('/', authenticate, async (req, res) => {
     const request = new SupportRequest({
       student_uid,
       amount_requested,
+      outstanding_balance: amount_requested,
       reason: reason || '',
       attachments: attachments || [],
       status: 'pending',

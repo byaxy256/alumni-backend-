@@ -6,6 +6,7 @@ export interface IPayment extends Document {
     transaction_id: string;
     loan_id?: string; // Reference to Loan ObjectId or sqlId
     loan_sql_id?: number; // Keep original loan ID
+    support_request_id?: string; // Reference to SupportRequest ObjectId
     user_id?: string; // Reference to User ObjectId or uid
     user_uid?: string; // Keep original user UID
     payer_uid?: string;
@@ -23,6 +24,7 @@ const PaymentSchema = new Schema<IPayment>({
     transaction_id: { type: String, required: true, unique: true, index: true },
     loan_id: { type: String, index: true }, // Can be ObjectId or numeric string
     loan_sql_id: { type: Number, index: true },
+    support_request_id: { type: String, index: true },
     user_id: { type: String, index: true },
     user_uid: { type: String, index: true },
     payer_uid: { type: String, index: true },

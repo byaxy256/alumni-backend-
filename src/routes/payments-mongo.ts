@@ -54,13 +54,13 @@ router.get('/loan/:loanId', authenticate, async (req, res) => {
 // POST /api/payments/initiate - initiate MTN payment
 router.post('/initiate', authenticate, async (req, res) => {
     try {
-        const { amount, phone, provider, loanId } = req.body;
+        const { amount, phone, provider, loanId, supportRequestId } = req.body;
         const userId = (req as any).user.id;
         const userUid = (req as any).user.uid;
         const transaction_id = uuidv4();
 
-        if (!amount || !phone || !loanId) {
-            return res.status(400).json({ error: 'Amount, phone, and loanId are required.' });
+        if (!amount || !phone || (!loanId && !supportRequestId)) {
+            return res.status(400).json({ error: 'Amount, phone, and either loanId or supportRequestId are required.' });
         }
         if (provider !== 'mtn') {
             return res.status(400).json({ error: 'Only MTN payments are supported.' });
@@ -69,13 +69,14 @@ router.post('/initiate', authenticate, async (req, res) => {
         const token = await getMtnToken();
         const callbackUrl = process.env.MTN_CALLBACK_URL || 'https://your-app.onrender.com/api/payments/callback';
 
+        const paymentType = loanId ? 'Loan' : 'Support Request';
         const paymentPayload = {
             amount: String(amount),
             currency: 'UGX',
-            externalId: loanId,
+            externalId: loanId || supportRequestId,
             payer: { partyIdType: 'MSISDN', partyId: phone },
-            payerMessage: `Payment for Loan #${loanId}`,
-            payeeNote: `Alumni Aid Loan Repayment`
+            payerMessage: `Payment for ${paymentType} #${loanId || supportRequestId}`,
+            payeeNote: `Alumni Aid ${paymentType} Repayment`
         };
 
         await axios.post(`${MTN_BASE_URL}/collection/v1_0/requesttopay`, paymentPayload, {
@@ -91,7 +92,8 @@ router.post('/initiate', authenticate, async (req, res) => {
 
         const newPayment = new Payment({
             transaction_id,
-            loan_id: loanId,
+            ...(loanId && { loan_id: loanId }),
+            ...(supportRequestId && { support_request_id: supportRequestId }),
             user_id: userId,
             user_uid: userUid,
             amount,
@@ -124,20 +126,61 @@ router.post('/callback', async (req, res) => {
             payment.status = 'SUCCESSFUL';
             payment.external_ref = financialTransactionId;
             
-            // Update loan outstanding balance and status
-            const loan = await Loan.findById(payment.loan_id);
-            if (loan) {
-                const currentOutstanding = loan.outstanding_balance ?? loan.amount;
-                loan.outstanding_balance = Math.max(0, currentOutstanding - payment.amount);
-                
-                // Update status to 'paid' if fully paid
-                if (loan.outstanding_balance <= 0) {
-                    loan.status = 'paid';
-                } else if (loan.status === 'pending' || loan.status === 'approved') {
-                    loan.status = 'active';
+            // Handle loan payment
+            if (payment.loan_id) {
+                const loan = await Loan.findById(payment.loan_id);
+                if (loan) {
+                    const currentOutstanding = loan.outstanding_balance ?? loan.amount;
+                    loan.outstanding_balance = Math.max(0, currentOutstanding - payment.amount);
+                    
+                    // Update status to 'paid' if fully paid
+                    if (loan.outstanding_balance <= 0) {
+                        loan.status = 'paid';
+                    } else if (loan.status === 'pending' || loan.status === 'approved') {
+                        loan.status = 'active';
+                    }
+                    
+                    await loan.save();
+                    
+                    // Send payment notification
+                    if (payment.user_uid) {
+                        await Notification.create({
+                            target_uid: payment.user_uid,
+                            title: 'Loan Payment Successful',
+                            message: `Payment of UGX ${payment.amount.toLocaleString()} has been applied to your loan. Outstanding balance: UGX ${loan.outstanding_balance.toLocaleString()}`,
+                            read: false,
+                        });
+                    }
                 }
-                
-                await loan.save();
+            }
+            
+            // Handle support request payment
+            if (payment.support_request_id) {
+                const { SupportRequest } = await import('../models/SupportRequest.js');
+                const supportRequest = await SupportRequest.findById(payment.support_request_id);
+                if (supportRequest) {
+                    const currentOutstanding = supportRequest.outstanding_balance ?? supportRequest.amount_requested;
+                    supportRequest.outstanding_balance = Math.max(0, currentOutstanding - payment.amount);
+                    
+                    // Update status to 'paid' if fully paid
+                    if (supportRequest.outstanding_balance <= 0) {
+                        supportRequest.status = 'paid';
+                    } else if (supportRequest.status === 'pending' || supportRequest.status === 'approved') {
+                        supportRequest.status = 'active';
+                    }
+                    
+                    await supportRequest.save();
+                    
+                    // Send payment notification
+                    if (payment.user_uid) {
+                        await Notification.create({
+                            target_uid: payment.user_uid,
+                            title: 'Support Request Payment Successful',
+                            message: `Payment of UGX ${payment.amount.toLocaleString()} has been applied to your support request. Outstanding balance: UGX ${supportRequest.outstanding_balance.toLocaleString()}`,
+                            read: false,
+                        });
+                    }
+                }
             }
         } else {
             payment.status = 'FAILED';
@@ -178,29 +221,58 @@ router.post('/confirm', authenticate, async (req, res) => {
         }
         await payment.save();
 
-        // Update loan outstanding balance
-        const loan = await Loan.findById(payment.loan_id);
-        if (loan) {
-            const currentOutstanding = loan.outstanding_balance ?? loan.amount;
-            loan.outstanding_balance = Math.max(0, currentOutstanding - payment.amount);
-            
-            // Update status to 'paid' if fully paid
-            if (loan.outstanding_balance <= 0) {
-                loan.status = 'paid';
-            } else if (loan.status === 'pending' || loan.status === 'approved') {
-                loan.status = 'active';
+        // Handle loan payment
+        if (payment.loan_id) {
+            const loan = await Loan.findById(payment.loan_id);
+            if (loan) {
+                const currentOutstanding = loan.outstanding_balance ?? loan.amount;
+                loan.outstanding_balance = Math.max(0, currentOutstanding - payment.amount);
+                
+                // Update status to 'paid' if fully paid
+                if (loan.outstanding_balance <= 0) {
+                    loan.status = 'paid';
+                } else if (loan.status === 'pending' || loan.status === 'approved') {
+                    loan.status = 'active';
+                }
+                
+                await loan.save();
+                
+                // Create notification for the user
+                await Notification.create({
+                    target_uid: userUid,
+                    title: 'Loan Payment Confirmed',
+                    message: `Your payment of UGX ${payment.amount.toLocaleString()} has been processed successfully. Outstanding balance: UGX ${loan.outstanding_balance.toLocaleString()}`,
+                    read: false,
+                });
             }
-            
-            await loan.save();
         }
-
-        // Create notification for the user
-        await Notification.create({
-            target_uid: userUid,
-            title: 'Payment Confirmed',
-            message: `Your payment of UGX ${payment.amount.toLocaleString()} has been processed successfully.`,
-            read: false,
-        });
+        
+        // Handle support request payment
+        if (payment.support_request_id) {
+            const { SupportRequest } = await import('../models/SupportRequest.js');
+            const supportRequest = await SupportRequest.findById(payment.support_request_id);
+            if (supportRequest) {
+                const currentOutstanding = supportRequest.outstanding_balance ?? supportRequest.amount_requested;
+                supportRequest.outstanding_balance = Math.max(0, currentOutstanding - payment.amount);
+                
+                // Update status to 'paid' if fully paid
+                if (supportRequest.outstanding_balance <= 0) {
+                    supportRequest.status = 'paid';
+                } else if (supportRequest.status === 'pending' || supportRequest.status === 'approved') {
+                    supportRequest.status = 'active';
+                }
+                
+                await supportRequest.save();
+                
+                // Create notification for the user
+                await Notification.create({
+                    target_uid: userUid,
+                    title: 'Support Request Payment Confirmed',
+                    message: `Your payment of UGX ${payment.amount.toLocaleString()} has been processed successfully. Outstanding balance: UGX ${supportRequest.outstanding_balance.toLocaleString()}`,
+                    read: false,
+                });
+            }
+        }
 
         res.json({
             message: 'Payment confirmed successfully',
