@@ -207,6 +207,11 @@ router.get('/:paymentId/receipt', authenticate, async (req, res) => {
             return res.status(403).json({ error: 'Unauthorized' });
         }
 
+        // Verify payment is successful
+        if (payment.status !== 'SUCCESSFUL') {
+            return res.status(404).json({ error: 'Receipt only available for successful payments' });
+        }
+
         // Generate a simple HTML receipt as PDF
         const receiptHtml = `
             <!DOCTYPE html>
