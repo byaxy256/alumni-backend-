@@ -55,6 +55,7 @@ router.post('/initiate', authenticate, async (req, res) => {
     try {
         const { amount, phone, provider, loanId } = req.body;
         const userId = (req as any).user.id;
+        const userUid = (req as any).user.uid;
         const transaction_id = uuidv4();
 
         if (!amount || !phone || !loanId) {
@@ -91,6 +92,7 @@ router.post('/initiate', authenticate, async (req, res) => {
             transaction_id,
             loan_id: loanId,
             user_id: userId,
+            user_uid: userUid,
             amount,
             status: 'PENDING',
         });
@@ -148,8 +150,11 @@ router.post('/confirm', authenticate, async (req, res) => {
             return res.json({ message: 'Payment already confirmed', paymentId: payment._id });
         }
 
-        // Mark payment as successful
+        // Mark payment as successful and ensure user_uid is set
         payment.status = 'SUCCESSFUL';
+        if (!payment.user_uid) {
+            payment.user_uid = userUid;
+        }
         await payment.save();
 
         // Update loan outstanding balance
