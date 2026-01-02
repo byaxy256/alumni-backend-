@@ -3,6 +3,7 @@ import express from 'express';
 import { SupportRequest } from '../models/SupportRequest.js';
 import { User } from '../models/User.js';
 import { authenticate, authorize } from '../middleware/auth.js';
+import { Loan } from '../models/Loan.js';
 
 const router = express.Router();
 
@@ -22,8 +23,9 @@ router.get('/', async (_req, res) => {
         email: user?.email || '',
         phone: user?.phone || '',
         program: user?.meta?.program || '',
-        semester: user?.meta?.semester || 1,
+        semester: user?.meta?.semester || '',
         university_id: user?.meta?.university_id || '',
+        amount_requested: req.amount_requested,
         reason: req.reason || '',
       };
     }));

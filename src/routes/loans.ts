@@ -49,9 +49,10 @@ router.get('/', async (_req, res) => {
         email: user?.email || '',
         phone: user?.phone || '',
         program: user?.meta?.program || '',
-        semester: user?.meta?.semester || 1,
+        semester: user?.meta?.semester || '',
         university_id: user?.meta?.university_id || '',
         amount_requested: loan.amount,
+        purpose: loan.purpose || '',
         repaymentPeriod: 12, // Default repayment period
       };
     }));
