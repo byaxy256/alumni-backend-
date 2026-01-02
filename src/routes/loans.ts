@@ -15,7 +15,7 @@ router.post('/', authenticate, authorize(['student']), upload.any(), async (req,
   try {
     const studentUid = (req as any).user.uid;
 
-    const { amountRequested, semester, consentFullChop, purpose } = req.body;
+    const { amountRequested, semester, consentFullChop, purpose, phone, program, currentSemester, studentId } = req.body;
     const amount = Number(amountRequested);
     if (isNaN(amount) || amount <= 0) return res.status(400).json({ error: 'Invalid amountRequested' });
 
@@ -27,6 +27,17 @@ router.post('/', authenticate, authorize(['student']), upload.any(), async (req,
       purpose: purpose || '',
       application_date: new Date()
     });
+
+    // Update user metadata with phone, program, semester, university_id if provided
+    const updateFields: any = {};
+    if (phone) updateFields.phone = phone;
+    if (program) updateFields['meta.program'] = program;
+    if (currentSemester) updateFields['meta.semester'] = currentSemester;
+    if (studentId) updateFields['meta.university_id'] = studentId;
+    
+    if (Object.keys(updateFields).length > 0) {
+      await User.updateOne({ uid: studentUid }, { $set: updateFields });
+    }
 
     res.status(201).json({ ok: true, id: loan._id.toString() });
   } catch (err) {

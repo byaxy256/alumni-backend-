@@ -94,7 +94,7 @@ router.get('/:id', authenticate, async (req, res) => {
 // POST /api/support - Create a new support request
 router.post('/', authenticate, async (req, res) => {
   try {
-    const { student_uid, amount_requested, reason, attachments } = req.body;
+    const { student_uid, amount_requested, reason, attachments, phone, program, currentSemester, studentId } = req.body;
 
     if (!student_uid || amount_requested === undefined) {
       return res.status(400).json({ error: 'student_uid and amount_requested are required' });
@@ -110,6 +110,18 @@ router.post('/', authenticate, async (req, res) => {
     });
 
     await request.save();
+    
+    // Update user metadata with phone, program, semester, university_id if provided
+    const updateFields: any = {};
+    if (phone) updateFields.phone = phone;
+    if (program) updateFields['meta.program'] = program;
+    if (currentSemester) updateFields['meta.semester'] = currentSemester;
+    if (studentId) updateFields['meta.university_id'] = studentId;
+    
+    if (Object.keys(updateFields).length > 0) {
+      await User.updateOne({ uid: student_uid }, { $set: updateFields });
+    }
+    
     res.status(201).json(request);
   } catch (err) {
     console.error('POST /support error:', err);

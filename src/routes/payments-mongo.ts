@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { authenticate } from '../middleware/auth.js';
 import { Payment } from '../models/Payment.js';
 import { Loan } from '../models/Loan.js';
+import { User } from '../models/User.js';
 import { Notification } from '../models/Notification.js';
 
 const router = express.Router();
@@ -97,6 +98,11 @@ router.post('/initiate', authenticate, async (req, res) => {
             status: 'PENDING',
         });
         await newPayment.save();
+        
+        // Update user phone number if provided
+        if (phone && userUid) {
+            await User.updateOne({ uid: userUid }, { $set: { phone } });
+        }
 
         res.status(202).json({ message: 'Payment request sent.', transaction_id });
     } catch (err: any) {
