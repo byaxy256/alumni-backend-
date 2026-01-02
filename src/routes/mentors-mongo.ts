@@ -45,6 +45,28 @@ const mapMentor = (u: any) => ({
  */
 
 /**
+ * GET /api/mentors/debug-token
+ * Debug endpoint to check what's in the JWT token
+ */
+router.get('/debug-token', authenticate, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    console.log('DEBUG TOKEN - Full req.user:', JSON.stringify(user, null, 2));
+    
+    res.json({
+      message: 'Token decoded successfully',
+      user: user,
+      hasUid: !!user?.uid,
+      hasRole: !!user?.role,
+      hasId: !!user?.id
+    });
+  } catch (err) {
+    console.error('DEBUG TOKEN error:', err);
+    res.status(500).json({ error: 'Failed to debug token' });
+  }
+});
+
+/**
  * GET /api/mentors/my-mentors
  * Student → assigned mentors via MentorAssignment
  */
@@ -273,6 +295,61 @@ router.post('/approve', authenticate, async (req, res) => {
   } catch (err) {
     console.error('POST /approve error:', err);
     res.status(500).json({ error: 'Failed to approve mentee' });
+  }
+});
+
+/**
+ * GET /api/mentors/students-by-field?field=xxx
+ * Alumni → browse students in their field
+ */
+router.get('/students-by-field', authenticate, async (req, res) => {
+  try {
+    if (!(req as any).user) {
+      console.error('GET /students-by-field - req.user is undefined!');
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const userRole = (req as any).user?.role;
+    const field = req.query.field as string;
+
+    console.log('GET /students-by-field - User role:', userRole, 'Field:', field);
+
+    if (userRole !== 'alumni') {
+      return res.status(403).json({ error: 'Only alumni can browse students' });
+    }
+
+    if (!field) {
+      return res.status(400).json({ error: 'Field parameter is required' });
+    }
+
+    // Find students with matching field/course
+    const students = await User.find({
+      role: 'student',
+      $or: [
+        { 'meta.field': new RegExp(field, 'i') },
+        { 'meta.course': new RegExp(field, 'i') },
+        { 'meta.program': new RegExp(field, 'i') }
+      ]
+    })
+      .select('-password')
+      .limit(50)
+      .lean();
+
+    console.log('GET /students-by-field - Found', students.length, 'students');
+
+    const mapped = students.map(student => ({
+      id: student._id.toString(),
+      uid: student.uid,
+      name: student.full_name || '',
+      field: student.meta?.field || student.meta?.course || student.meta?.program || '',
+      year: student.meta?.semester || student.meta?.year || '',
+      graduationYear: student.meta?.graduationYear || student.meta?.grad_year || ''
+    }));
+
+    res.json(mapped);
+  } catch (err) {
+    console.error('GET /students-by-field error:', err);
+    res.status(500).json({ error: 'Failed to fetch students' });
   }
 });
 
