@@ -4,6 +4,7 @@ import { SupportRequest } from '../models/SupportRequest.js';
 import { User } from '../models/User.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { Loan } from '../models/Loan.js';
+import { Application } from '../models/Application.js';
 
 const router = express.Router();
 
@@ -17,8 +18,8 @@ router.get('/', async (_req, res) => {
       const user = await User.findOne({ uid: req.student_uid }).select('full_name email phone meta').lean();
       
       // Try to get data from Application if available (has semester from form)
-      const application = await Application.findOne({ student_uid: req.student_uid, type: 'support' }).sort({ created_at: -1 }).lean();
-      const appPayload = application?.payload || {};
+      const appData = await Application.findOne({ student_uid: req.student_uid, type: 'support' }).sort({ created_at: -1 }).lean();
+      const appPayload = appData?.payload || {};
       
       return {
         ...req,

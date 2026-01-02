@@ -44,8 +44,8 @@ router.get('/', async (_req, res) => {
       const user = await User.findOne({ uid: loan.student_uid }).select('full_name email phone meta').lean();
       
       // Try to get data from Application if available (has semester and amount_requested from form)
-      const application = await Application.findOne({ student_uid: loan.student_uid, type: 'loan' }).sort({ created_at: -1 }).lean();
-      const appPayload = application?.payload || {};
+      const appData = await Application.findOne({ student_uid: loan.student_uid, type: 'loan' }).sort({ created_at: -1 }).lean();
+      const appPayload = appData?.payload || {};
       
       return {
         ...loan,
