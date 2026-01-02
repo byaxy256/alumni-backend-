@@ -33,17 +33,35 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
 ======================= */
 
 // CORS configuration with origin function for flexibility
-const corsOptions = {
-  origin: function (_origin: any, callback: any) {
-    // Allow all origins to unblock frontend (Vercel, localhost, etc.)
-    callback(null, true);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-};
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5173',
+  'https://alumni-frontend-seven.vercel.app',
+  'https://alumni-frontend-git-main-byaxydraxler256-6957s-projects.vercel.app',
+];
 
-app.use(cors(corsOptions));
+app.use(
+  cors({
+    origin(origin, callback) {
+      // allow server-to-server & tools like Postman
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.error('❌ Blocked by CORS:', origin);
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
+// VERY IMPORTANT — handle preflight
+app.options('*', cors());
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
