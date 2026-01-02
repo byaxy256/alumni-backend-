@@ -5,6 +5,7 @@ import { User } from '../models/User.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { Loan } from '../models/Loan.js';
 import { Application } from '../models/Application.js';
+import { Disbursement } from '../models/Disbursement.js';
 
 const router = express.Router();
 
@@ -21,6 +22,13 @@ router.get('/', async (_req, res) => {
       const appData = await Application.findOne({ student_uid: req.student_uid }).sort({ created_at: -1 }).lean();
       const appPayload = appData?.payload || {};
       
+      // For amount: use req.amount_requested if > 0, else try appPayload.amountRequested, else try disbursement.original_amount
+      let amount = req.amount_requested > 0 ? req.amount_requested : (appPayload?.amountRequested ? Number(appPayload.amountRequested) : 0);
+      if (amount === 0) {
+        const disbursement = await Disbursement.findOne({ student_uid: req.student_uid }).sort({ created_at: -1 }).lean();
+        amount = disbursement?.original_amount || 0;
+      }
+      
       // For semester: prefer user.meta.semester, fallback to appPayload.currentSemester
       let semester = user?.meta?.semester || appPayload?.currentSemester || '';
       
@@ -34,7 +42,7 @@ router.get('/', async (_req, res) => {
         program: user?.meta?.program || appPayload?.program || '',
         semester: semester,
         university_id: user?.meta?.university_id || appPayload?.studentId || '',
-        amount_requested: req.amount_requested,
+        amount_requested: amount,
         reason: req.reason || '',
       };
     }));

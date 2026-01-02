@@ -4,6 +4,7 @@ import multer from 'multer';
 import { Loan } from '../models/Loan.js';
 import { User } from '../models/User.js';
 import { Application } from '../models/Application.js';
+import { Disbursement } from '../models/Disbursement.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -47,8 +48,12 @@ router.get('/', async (_req, res) => {
       const appData = await Application.findOne({ student_uid: loan.student_uid }).sort({ created_at: -1 }).lean();
       const appPayload = appData?.payload || {};
       
-      // For amount: use loan.amount if > 0, else try appPayload.amountRequested
-      const amount = loan.amount > 0 ? loan.amount : (appPayload?.amountRequested ? Number(appPayload.amountRequested) : 0);
+      // For amount: use loan.amount if > 0, else try appPayload.amountRequested, else try disbursement.original_amount
+      let amount = loan.amount > 0 ? loan.amount : (appPayload?.amountRequested ? Number(appPayload.amountRequested) : 0);
+      if (amount === 0) {
+        const disbursement = await Disbursement.findOne({ student_uid: loan.student_uid }).sort({ created_at: -1 }).lean();
+        amount = disbursement?.original_amount || 0;
+      }
       
       // For semester: prefer user.meta.semester, fallback to appPayload.currentSemester
       let semester = user?.meta?.semester || appPayload?.currentSemester || '';
