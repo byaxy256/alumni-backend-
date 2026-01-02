@@ -33,51 +33,24 @@ async function saveUploadedFile(file?: Express.Multer.File) {
 // ===== GET Endpoints =====
 
 // Get all published news
-router.get('/news', async (req, res) => {
+router.get('/news', async (_req, res) => {
   try {
-    const news = await News.find({ status: 'published' }).sort({ created_at: -1 }).lean();
-    res.json({ content: news.map((item: any) => ({
-      id: item._id?.toString(),
-      title: item.title || '',
-      description: item.description || item.content || '',
-      content: item.content || item.description || '',
-      hasImage: !!item.image_data,
-      imageUrl: item.image_url ? `${req.protocol}://${req.get('host')}${item.image_url}` : null,
-      audience: item.audience || item.target_audience || 'all',
-      published: item.status === 'published',
-      type: 'news',
-      createdAt: item.created_at,
-      updatedAt: item.updated_at,
-    })) });
+    const news = await News.find().sort({ createdAt: -1 });
+    res.json(news);
   } catch (err) {
-    console.error('GET /news error:', err);
-    res.status(500).json({ error: 'Failed to fetch news' });
+    console.error('NEWS ERROR:', err);
+    res.status(500).json({ error: 'Failed to load news' });
   }
 });
 
-// Get all events (not drafts)
-router.get('/events', async (req, res) => {
+// Get all events
+router.get('/events', async (_req, res) => {
   try {
-    const events = await Event.find({ status: { $ne: 'draft' } }).sort({ event_date: -1 }).lean();
-    res.json({ content: events.map((item: any) => ({
-      id: item._id?.toString(),
-      title: item.title || '',
-      description: item.description || '',
-      content: item.description || '',
-      hasImage: !!item.image_url || !!item.image_data,
-      imageUrl: item.image_url ? `${req.protocol}://${req.get('host')}${item.image_url}` : null,
-      audience: item.audience || item.target_audience || 'all',
-      date: item.event_date,
-      time: item.event_time,
-      location: item.location || '',
-      published: item.status !== 'draft',
-      type: 'event',
-      createdAt: item.created_at,
-      updatedAt: item.updated_at,
-    })) });
+    const events = await Event.find().sort({ date: -1 });
+    res.json(events);
   } catch (err) {
-    console.error('GET /events error:', err);
-    res.status(500).json({ error: 'Failed to fetch events' });
+    console.error('EVENTS ERROR:', err);
+    res.status(500).json({ error: 'Failed to load events' });
   }
 });
 
