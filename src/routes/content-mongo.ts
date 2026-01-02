@@ -39,13 +39,14 @@ router.get('/news', async (req, res) => {
     res.json({ content: news.map(item => ({
       id: item._id?.toString(),
       title: item.title || '',
+      description: item.description || item.content || '',
       content: item.content || '',
       hasImage: !!item.image_data,
       audience: item.audience || item.target_audience || 'all',
       published: item.status === 'published',
       type: 'news',
-      created_at: item.created_at,
-      updated_at: item.updated_at,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
     })) });
   } catch (err) {
     console.error('GET /news error:', err);
@@ -60,7 +61,8 @@ router.get('/events', async (req, res) => {
     res.json({ content: events.map(item => ({
       id: item._id?.toString(),
       title: item.title || '',
-      description: item.description || '',
+      description: item.description || item.content || '',
+      content: item.content || '',
       hasImage: !!item.image_url || !!item.image_data,
       imageUrl: item.image_url || null,
       audience: item.audience || item.target_audience || 'all',
@@ -68,9 +70,9 @@ router.get('/events', async (req, res) => {
       time: item.event_time,
       location: item.location || '',
       published: item.status !== 'draft',
-      type: 'events',
-      created_at: item.created_at,
-      updated_at: item.updated_at,
+      type: 'event',
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
     })) });
   } catch (err) {
     console.error('GET /events error:', err);
