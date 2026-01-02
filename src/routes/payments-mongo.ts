@@ -123,7 +123,22 @@ router.post('/callback', async (req, res) => {
         if (status === 'SUCCESSFUL') {
             payment.status = 'SUCCESSFUL';
             payment.external_ref = financialTransactionId;
-            await Loan.findByIdAndUpdate(payment.loan_id, { $inc: { outstanding_balance: -payment.amount } });
+            
+            // Update loan outstanding balance and status
+            const loan = await Loan.findById(payment.loan_id);
+            if (loan) {
+                const currentOutstanding = loan.outstanding_balance ?? loan.amount;
+                loan.outstanding_balance = Math.max(0, currentOutstanding - payment.amount);
+                
+                // Update status to 'paid' if fully paid
+                if (loan.outstanding_balance <= 0) {
+                    loan.status = 'paid';
+                } else if (loan.status === 'pending' || loan.status === 'approved') {
+                    loan.status = 'active';
+                }
+                
+                await loan.save();
+            }
         } else {
             payment.status = 'FAILED';
         }
@@ -166,7 +181,16 @@ router.post('/confirm', authenticate, async (req, res) => {
         // Update loan outstanding balance
         const loan = await Loan.findById(payment.loan_id);
         if (loan) {
-            loan.outstanding_balance = Math.max(0, (loan.outstanding_balance || loan.amount) - payment.amount);
+            const currentOutstanding = loan.outstanding_balance ?? loan.amount;
+            loan.outstanding_balance = Math.max(0, currentOutstanding - payment.amount);
+            
+            // Update status to 'paid' if fully paid
+            if (loan.outstanding_balance <= 0) {
+                loan.status = 'paid';
+            } else if (loan.status === 'pending' || loan.status === 'approved') {
+                loan.status = 'active';
+            }
+            
             await loan.save();
         }
 

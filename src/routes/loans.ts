@@ -51,6 +51,9 @@ router.get('/', async (_req, res) => {
   try {
     const loans = await Loan.find().sort({ created_at: -1 }).lean();
     
+    // Import Payment model
+    const { Payment } = await import('../models/Payment.js');
+    
     // Enrich with user data and application payload data
     const enriched = await Promise.all(loans.map(async (loan) => {
       const user = await User.findOne({ uid: loan.student_uid }).select('full_name email phone meta').lean();
@@ -66,6 +69,14 @@ router.get('/', async (_req, res) => {
         amount = disbursement?.original_amount || 0;
       }
       
+      // Calculate actual outstanding balance from successful payments
+      const payments = await Payment.find({ 
+        loan_id: loan._id.toString(), 
+        status: 'SUCCESSFUL' 
+      }).lean();
+      const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const actualOutstanding = Math.max(0, amount - totalPaid);
+      
       // For semester: prefer user.meta.semester, fallback to appPayload.currentSemester
       let semester = user?.meta?.semester || appPayload?.currentSemester || '';
       
@@ -80,6 +91,8 @@ router.get('/', async (_req, res) => {
         semester: semester,
         university_id: user?.meta?.university_id || appPayload?.studentId || '',
         amount_requested: amount,
+        outstanding_balance: actualOutstanding,
+        total_paid: totalPaid,
         purpose: loan.purpose || appPayload?.purpose || '',
         repaymentPeriod: 12,
       };
@@ -100,16 +113,31 @@ router.get('/mine', authenticate, async (req, res) => {
       .sort({ created_at: -1 })
       .lean();
     
-    // Normalize response to include amount_requested for frontend compatibility
-    const mapped = loans.map(loan => ({
-      id: loan._id.toString(),
-      amount_requested: loan.amount,
-      outstanding_balance: loan.outstanding_balance,
-      status: loan.status,
-      created_at: loan.created_at,
-      repaymentPeriod: (loan as any).repaymentPeriod,
-      chopConsented: (loan as any).consentFullChop || false,
-      raw: loan
+    // Import Payment model to calculate actual outstanding balance
+    const { Payment } = await import('../models/Payment.js');
+    
+    // Normalize response and recalculate outstanding balance from payments
+    const mapped = await Promise.all(loans.map(async (loan) => {
+      // Get all successful payments for this loan
+      const payments = await Payment.find({ 
+        loan_id: loan._id.toString(), 
+        status: 'SUCCESSFUL' 
+      }).lean();
+      
+      const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const actualOutstanding = Math.max(0, loan.amount - totalPaid);
+      
+      return {
+        id: loan._id.toString(),
+        amount_requested: loan.amount,
+        outstanding_balance: actualOutstanding,
+        total_paid: totalPaid,
+        status: loan.status,
+        created_at: loan.created_at,
+        repaymentPeriod: (loan as any).repaymentPeriod,
+        chopConsented: (loan as any).consentFullChop || false,
+        raw: loan
+      };
     }));
 
     res.json(mapped);
