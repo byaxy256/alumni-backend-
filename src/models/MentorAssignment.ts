@@ -5,8 +5,9 @@ export interface IMentorAssignment extends Document {
     student_uid: string;
     mentor_uid: string;
     field: string;
-    assigned_date: Date;
-    status: 'active' | 'paused' | 'completed';
+    requested_at?: Date;
+    assigned_date?: Date;
+    status: 'pending' | 'active' | 'paused' | 'completed';
     sessions_count: number;
     notes?: string;
     created_at: Date;
@@ -17,11 +18,12 @@ const MentorAssignmentSchema = new Schema<IMentorAssignment>({
     student_uid: { type: String, required: true, index: true },
     mentor_uid: { type: String, required: true, index: true },
     field: { type: String, required: true },
-    assigned_date: { type: Date, default: Date.now },
+    requested_at: { type: Date, default: Date.now },
+    assigned_date: { type: Date, default: null },
     status: {
         type: String,
-        enum: ['active', 'paused', 'completed'],
-        default: 'active',
+        enum: ['pending', 'active', 'paused', 'completed'],
+        default: 'pending',
         index: true
     },
     sessions_count: { type: Number, default: 0 },

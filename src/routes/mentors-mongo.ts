@@ -399,6 +399,93 @@ router.post('/approve', authenticate, async (req, res) => {
 });
 
 /**
+ * POST /api/mentors/reject
+ * Alumni rejects a pending mentor request
+ */
+router.post('/reject', authenticate, async (req, res) => {
+  try {
+    if (!(req as any).user) {
+      console.error('POST /reject - req.user is undefined!');
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const userUid = (req as any).user?.uid;
+    const userRole = (req as any).user?.role;
+    const { assignmentId } = req.body;
+
+    console.log('POST /reject - User:', { uid: userUid, role: userRole }, 'assignmentId:', assignmentId);
+
+    if (userRole !== 'alumni') {
+      return res.status(403).json({ error: 'Only alumni can reject requests' });
+    }
+
+    if (!assignmentId) {
+      return res.status(400).json({ error: 'Missing assignmentId' });
+    }
+
+    const assignment = await MentorAssignment.findById(assignmentId);
+    if (!assignment) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    if (assignment.mentor_uid !== userUid) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Delete the assignment (reject the request)
+    await MentorAssignment.findByIdAndDelete(assignmentId);
+
+    res.json({ message: 'Request rejected' });
+  } catch (err) {
+    console.error('POST /reject error:', err);
+    res.status(500).json({ error: 'Failed to reject request' });
+  }
+});
+
+/**
+ * POST /api/mentors/remove-approved
+ * Alumni removes an approved mentee
+ */
+router.post('/remove-approved', authenticate, async (req, res) => {
+  try {
+    if (!(req as any).user) {
+      console.error('POST /remove-approved - req.user is undefined!');
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const userUid = (req as any).user?.uid;
+    const userRole = (req as any).user?.role;
+    const { studentId } = req.body;
+
+    console.log('POST /remove-approved - User:', { uid: userUid, role: userRole }, 'studentId:', studentId);
+
+    if (userRole !== 'alumni') {
+      return res.status(403).json({ error: 'Only alumni can remove mentees' });
+    }
+
+    if (!studentId) {
+      return res.status(400).json({ error: 'Missing studentId' });
+    }
+
+    // Find and delete the assignment by student ID (uid)
+    const result = await MentorAssignment.findOneAndDelete({
+      student_uid: studentId,
+      mentor_uid: userUid,
+      status: 'active'
+    });
+
+    if (!result) {
+      return res.status(404).json({ error: 'Mentee not found or already removed' });
+    }
+
+    res.json({ message: 'Mentee removed successfully' });
+  } catch (err) {
+    console.error('POST /remove-approved error:', err);
+    res.status(500).json({ error: 'Failed to remove mentee' });
+  }
+});
+
+/**
  * GET /api/mentors/students-by-field?field=xxx
  * Alumni → browse students in their field
  */
