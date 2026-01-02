@@ -35,7 +35,7 @@ async function saveUploadedFile(file?: Express.Multer.File) {
 // Get all published news
 router.get('/news', async (_req, res) => {
   try {
-    const news = await News.find().sort({ createdAt: -1 });
+    const news = await News.find().sort({ created_at: -1 });
     res.json(news);
   } catch (err) {
     console.error('NEWS ERROR:', err);
@@ -46,7 +46,7 @@ router.get('/news', async (_req, res) => {
 // Get all events
 router.get('/events', async (_req, res) => {
   try {
-    const events = await Event.find().sort({ date: -1 });
+    const events = await Event.find().sort({ event_date: -1 });
     res.json(events);
   } catch (err) {
     console.error('EVENTS ERROR:', err);

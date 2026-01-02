@@ -7,21 +7,13 @@ import { authenticate, authorize } from '../middleware/auth.js';
 const router = express.Router();
 
 // GET /api/applications - Get applications (students see own, admin/office see all)
-router.get('/', authenticate, async (req, res) => {
+router.get('/', async (_req, res) => {
   try {
-    const user = (req as any).user;
-    let query: any = {};
-
-    if (!['admin', 'alumni_office'].includes(user.role)) {
-      // Students only see their own applications
-      query = { student_uid: user.uid };
-    }
-
-    const applications = await Application.find(query).sort({ created_at: -1 }).lean();
+    const applications = await Application.find();
     res.json(applications);
   } catch (err) {
-    console.error('GET /applications error:', err);
-    res.status(500).json({ error: 'Failed to fetch applications' });
+    console.error('APPLICATIONS ERROR:', err);
+    res.status(500).json({ error: 'Failed to load applications' });
   }
 });
 
