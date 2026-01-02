@@ -177,13 +177,22 @@ router.put('/me', async (req, res) => {
     const payload: any = jwt.verify(token, JWT_SECRET);
     if (!payload?.id) return res.status(401).json({ error: 'Invalid token payload' });
 
-    const { full_name, email, phone, meta } = req.body;
+    const { full_name, email, phone, meta, semester, program, university_id } = req.body;
     
     const updateData: any = {};
     if (full_name) updateData.full_name = full_name;
     if (email) updateData.email = email;
     if (phone) updateData.phone = phone;
-    if (meta) updateData.meta = meta;
+    
+    // Handle meta object update
+    if (meta) {
+      updateData.meta = meta;
+    } else {
+      // Handle individual meta field updates
+      if (semester !== undefined) updateData['meta.semester'] = semester;
+      if (program) updateData['meta.program'] = program;
+      if (university_id) updateData['meta.university_id'] = university_id;
+    }
 
     const user = await User.findByIdAndUpdate(
       payload.id,

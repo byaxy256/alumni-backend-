@@ -7,9 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
-    "fix-data": "tsx scripts/fix-migration-data.ts",
-    "migrate": "tsx scripts/migrate-to-mongodb.ts",
-    "update-data": "tsx scripts/update-missing-data.ts"
+    "fix-data": "tsx scripts/fix-migration-data.ts"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -24,7 +22,6 @@
     "mongodb": "^6.21.0",
     "mongoose": "^8.20.4",
     "multer": "^1.4.5-lts.1",
-    "mysql2": "^3.16.0",
     "pdfkit": "^0.17.2",
     "uuid": "^13.0.0"
   },
