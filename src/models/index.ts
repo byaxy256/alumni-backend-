@@ -37,3 +37,6 @@ export type { ISupportRequest } from './SupportRequest.js';
 
 export { EventRegistration } from './EventRegistration.js';
 export type { IEventRegistration } from './EventRegistration.js';
+
+export { MentorAssignment } from './MentorAssignment.js';
+export type { IMentorAssignment } from './MentorAssignment.js';
