@@ -12,18 +12,18 @@ router.get('/', async (_req, res) => {
     const requests = await SupportRequest.find().sort({ created_at: -1 }).lean();
     
     // Enrich with user data
-    const enriched = await Promise.all(requests.map(async (req) => {
+    const enriched = await Promise.all(requests.map(async (req: any) => {
       const user = await User.findOne({ uid: req.student_uid }).select('full_name email phone meta').lean();
       return {
         ...req,
-        id: req._id ? req._id.toString() : req.sqlId,
+        id: req._id ? req._id.toString() : undefined,
         full_name: user?.full_name || 'N/A',
         email: user?.email || '',
         phone: user?.phone || '',
         program: user?.meta?.program || 'N/A',
         semester: user?.meta?.semester || 0,
         university_id: user?.meta?.university_id || 'N/A',
-        reason: req.description || req.reason || 'N/A',
+        reason: req.reason || 'N/A',
       };
     }));
     
