@@ -96,29 +96,52 @@ router.get('/my-mentors', authenticate, async (req, res) => {
     }
 
     // Get active mentor assignments for this student
+    console.log('GET /my-mentors - Querying MentorAssignment with:', { student_uid: userUid, status: 'active' });
     const assignments = await MentorAssignment.find({
       student_uid: userUid,
       status: 'active'
     }).lean();
 
+    console.log('GET /my-mentors - Found', assignments.length, 'assignments');
+
     if (assignments.length === 0) {
+      console.log('GET /my-mentors - No mentors found, returning empty array');
       return res.json([]);
     }
 
     // Get mentor user information
+    console.log('GET /my-mentors - Fetching mentor details for', assignments.length, 'assignments');
     const mentors = await Promise.all(
-      assignments.map(async (assignment) => {
-        const mentor = await User.findOne({ uid: assignment.mentor_uid })
-          .select('-password')
-          .lean();
-        return mentor ? mapMentor(mentor) : null;
+      assignments.map(async (assignment, index) => {
+        try {
+          console.log(`GET /my-mentors - Fetching mentor ${index + 1}:`, assignment.mentor_uid);
+          const mentor = await User.findOne({ uid: assignment.mentor_uid })
+            .select('-password')
+            .lean();
+          
+          if (!mentor) {
+            console.warn(`GET /my-mentors - Mentor not found for UID:`, assignment.mentor_uid);
+            return null;
+          }
+          
+          return mapMentor(mentor);
+        } catch (mentorErr) {
+          console.error(`GET /my-mentors - Error fetching mentor ${assignment.mentor_uid}:`, mentorErr);
+          return null;
+        }
       })
     );
 
-    res.json(mentors.filter(Boolean));
+    const validMentors = mentors.filter(Boolean);
+    console.log('GET /my-mentors - Returning', validMentors.length, 'valid mentors');
+    res.json(validMentors);
   } catch (err) {
-    console.error('GET /my-mentors error:', err);
-    res.status(500).json({ error: 'Failed to fetch mentors' });
+    console.error('GET /my-mentors FATAL error:', err);
+    console.error('Error stack:', (err as Error).stack);
+    res.status(500).json({ 
+      error: 'Failed to fetch mentors',
+      details: process.env.NODE_ENV === 'development' ? (err as Error).message : undefined
+    });
   }
 });
 
