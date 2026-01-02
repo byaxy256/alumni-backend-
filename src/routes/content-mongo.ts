@@ -11,23 +11,32 @@ import { authenticate, authorize } from '../middleware/auth.js';
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
+const CONTENT_DIR = path.join(process.cwd(), UPLOAD_DIR, 'content');
 
-// Save uploaded file to disk
+// Utility: save uploaded file to disk and/or keep buffer
 async function saveUploadedFile(file?: Express.Multer.File) {
-  if (!file) return null;
-  const contentDir = path.join(process.cwd(), UPLOAD_DIR, 'content');
-  await fs.mkdir(contentDir, { recursive: true });
+  if (!file) return { path: null, buffer: null, mime: null };
+
+  await fs.mkdir(CONTENT_DIR, { recursive: true });
+
   const safeName = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`;
-  const filePath = path.join(contentDir, safeName);
+  const filePath = path.join(CONTENT_DIR, safeName);
   await fs.writeFile(filePath, file.buffer);
-  return `/${UPLOAD_DIR}/content/${safeName}`;
+
+  return {
+    path: `/${UPLOAD_DIR}/content/${safeName}`,
+    buffer: file.buffer,
+    mime: file.mimetype,
+  };
 }
 
-// GET /api/content/news - Get all news
+// ===== GET Endpoints =====
+
+// Get all published news
 router.get('/news', async (req, res) => {
   try {
     const news = await News.find({ status: 'published' }).sort({ created_at: -1 }).lean();
-    res.json(news.map(item => ({
+    res.json({ content: news.map(item => ({
       id: item._id?.toString(),
       title: item.title || '',
       content: item.content || '',
@@ -37,18 +46,18 @@ router.get('/news', async (req, res) => {
       type: 'news',
       created_at: item.created_at,
       updated_at: item.updated_at,
-    })));
+    })) });
   } catch (err) {
     console.error('GET /news error:', err);
     res.status(500).json({ error: 'Failed to fetch news' });
   }
 });
 
-// GET /api/content/events - Get all events
+// Get all events (not drafts)
 router.get('/events', async (req, res) => {
   try {
     const events = await Event.find({ status: { $ne: 'draft' } }).sort({ event_date: -1 }).lean();
-    res.json(events.map(item => ({
+    res.json({ content: events.map(item => ({
       id: item._id?.toString(),
       title: item.title || '',
       description: item.description || '',
@@ -62,55 +71,51 @@ router.get('/events', async (req, res) => {
       type: 'events',
       created_at: item.created_at,
       updated_at: item.updated_at,
-    })));
+    })) });
   } catch (err) {
     console.error('GET /events error:', err);
     res.status(500).json({ error: 'Failed to fetch events' });
   }
 });
 
-// POST /api/content/news - Create news (admin/alumni_office only)
+// ===== POST Endpoints =====
+
+// Create news
 router.post('/news', authenticate, authorize(['admin', 'alumni_office']), upload.single('image'), async (req, res) => {
   try {
     const { title, content, audience, status } = req.body;
-    const imageUrl = await saveUploadedFile(req.file);
+    const { path: imagePath, buffer: imageBuffer, mime: imageMime } = await saveUploadedFile(req.file);
 
     const news = new News({
       title,
       content,
-      image_data: imageUrl,
+      image_data: imagePath || imageBuffer,
+      image_mime: imageMime,
       audience: audience || 'all',
       status: status || 'published',
       author_id: (req as any).user.id,
     });
 
     await news.save();
-    res.status(201).json({
-      id: news._id?.toString(),
-      title: news.title,
-      content: news.content,
-      image_data: news.image_data,
-      audience: news.audience,
-      status: news.status,
-      created_at: news.created_at,
-      updated_at: news.updated_at,
-    });
+    res.status(201).json(news);
   } catch (err) {
     console.error('POST /news error:', err);
     res.status(500).json({ error: 'Failed to create news' });
   }
 });
 
-// POST /api/content/events - Create event (admin/alumni_office only)
+// Create event
 router.post('/events', authenticate, authorize(['admin', 'alumni_office']), upload.single('image'), async (req, res) => {
   try {
     const { title, description, event_date, event_time, location, audience, status } = req.body;
-    const imageUrl = await saveUploadedFile(req.file);
+    const { path: imagePath, buffer: imageBuffer, mime: imageMime } = await saveUploadedFile(req.file);
 
     const event = new Event({
       title,
       description,
-      image_url: imageUrl,
+      image_url: imagePath || undefined,
+      image_data: imageBuffer || undefined,
+      image_mime: imageMime,
       event_date: event_date ? new Date(event_date) : new Date(),
       event_time,
       location,
@@ -120,37 +125,27 @@ router.post('/events', authenticate, authorize(['admin', 'alumni_office']), uplo
     });
 
     await event.save();
-    res.status(201).json({
-      id: event._id?.toString(),
-      title: event.title,
-      description: event.description,
-      image_url: event.image_url,
-      event_date: event.event_date,
-      event_time: event.event_time,
-      location: event.location,
-      audience: event.audience,
-      status: event.status,
-      created_at: event.created_at,
-      updated_at: event.updated_at,
-    });
+    res.status(201).json(event);
   } catch (err) {
     console.error('POST /events error:', err);
     res.status(500).json({ error: 'Failed to create event' });
   }
 });
 
-// PUT /api/content/news/:id - Update news
+// ===== PUT Endpoints =====
+
+// Update news
 router.put('/news/:id', authenticate, authorize(['admin', 'alumni_office']), upload.single('image'), async (req, res) => {
   try {
     const { title, content, audience, status } = req.body;
-    const imageUrl = await saveUploadedFile(req.file);
+    const { path: imagePath, buffer: imageBuffer, mime: imageMime } = await saveUploadedFile(req.file);
 
     const news = await News.findByIdAndUpdate(
       req.params.id,
       {
         title,
         content,
-        ...(imageUrl && { image_data: imageUrl }),
+        ...(imagePath || imageBuffer ? { image_data: imagePath || imageBuffer, image_mime: imageMime } : {}),
         audience: audience || 'all',
         status: status || 'published',
         updated_at: new Date(),
@@ -166,18 +161,18 @@ router.put('/news/:id', authenticate, authorize(['admin', 'alumni_office']), upl
   }
 });
 
-// PUT /api/content/events/:id - Update event
+// Update event
 router.put('/events/:id', authenticate, authorize(['admin', 'alumni_office']), upload.single('image'), async (req, res) => {
   try {
     const { title, description, event_date, event_time, location, audience, status } = req.body;
-    const imageUrl = await saveUploadedFile(req.file);
+    const { path: imagePath, buffer: imageBuffer, mime: imageMime } = await saveUploadedFile(req.file);
 
     const event = await Event.findByIdAndUpdate(
       req.params.id,
       {
         title,
         description,
-        ...(imageUrl && { image_url: imageUrl }),
+        ...(imagePath || imageBuffer ? { image_url: imagePath, image_data: imageBuffer, image_mime: imageMime } : {}),
         event_date: event_date ? new Date(event_date) : undefined,
         event_time,
         location,
@@ -196,7 +191,8 @@ router.put('/events/:id', authenticate, authorize(['admin', 'alumni_office']), u
   }
 });
 
-// DELETE /api/content/news/:id - Delete news
+// ===== DELETE Endpoints =====
+
 router.delete('/news/:id', authenticate, authorize(['admin', 'alumni_office']), async (req, res) => {
   try {
     const news = await News.findByIdAndDelete(req.params.id);
@@ -208,7 +204,6 @@ router.delete('/news/:id', authenticate, authorize(['admin', 'alumni_office']), 
   }
 });
 
-// DELETE /api/content/events/:id - Delete event
 router.delete('/events/:id', authenticate, authorize(['admin', 'alumni_office']), async (req, res) => {
   try {
     const event = await Event.findByIdAndDelete(req.params.id);
@@ -220,108 +215,45 @@ router.delete('/events/:id', authenticate, authorize(['admin', 'alumni_office'])
   }
 });
 
-// GET /api/content/news/:id/image - Serve news image
-router.get('/news/:id/image', async (req, res) => {
+// ===== IMAGE SERVING =====
+async function serveImage(res: express.Response, data: any, mime: string | undefined) {
   try {
-    const news: any = await News.findById(req.params.id).lean();
-    if (!news || !news.image_data) return res.status(404).json({ error: 'Image not found' });
+    if (!data) return res.status(404).json({ error: 'Image not found' });
 
-    // image_data may be a static path (string) or a Buffer stored in DB
-    if (typeof news.image_data === 'string') {
-      // Cast to string and check first char safely (avoids TS issues with startsWith)
-      const imageData: string = String(news.image_data);
-      // If stored path is local (starts with /uploads), serve file directly so Content-Length is correct
-      if (imageData && imageData.charAt(0) === '/') {
-        const filePath = path.join(process.cwd(), imageData.replace(/^\//, ''));
-        if (fsSync.existsSync(filePath)) {
-          const stat = fsSync.statSync(filePath);
-          const mime = news.image_mime || 'application/octet-stream';
-          res.setHeader('Content-Type', mime);
-          res.setHeader('Content-Length', String(stat.size));
-          const stream = fsSync.createReadStream(filePath);
-          return stream.pipe(res);
-        }
-
-        // Fallback: try alternate directory name 'contents' vs 'content'
-        const altPath = filePath.replace(path.join('uploads', 'content'), path.join('uploads', 'contents'));
-        if (fsSync.existsSync(altPath)) {
-          const stat = fsSync.statSync(altPath);
-          const mime = news.image_mime || 'application/octet-stream';
-          res.setHeader('Content-Type', mime);
-          res.setHeader('Content-Length', String(stat.size));
-          const stream = fsSync.createReadStream(altPath);
-          // Optionally update DB to new canonical path, but avoid doing that here automatically.
-          return stream.pipe(res);
-        }
-
-        // fallback to redirect if file missing
-        return res.redirect(imageData);
+    if (typeof data === 'string') {
+      const filePath = path.join(process.cwd(), data.replace(/^\//, ''));
+      if (fsSync.existsSync(filePath)) {
+        const stat = fsSync.statSync(filePath);
+        res.setHeader('Content-Type', mime || 'application/octet-stream');
+        res.setHeader('Content-Length', String(stat.size));
+        return fsSync.createReadStream(filePath).pipe(res);
       }
-      return res.redirect(imageData);
+      return res.redirect(data); // fallback to URL
     }
 
-    // Buffer -> stream bytes with mime if available
-    const buf: Buffer = Buffer.isBuffer(news.image_data) ? news.image_data : Buffer.from(news.image_data);
-    const mime = news.image_mime || 'application/octet-stream';
-    res.setHeader('Content-Type', mime);
-    res.setHeader('Content-Length', String(buf.length));
-    return res.send(buf);
+    if (Buffer.isBuffer(data)) {
+      res.setHeader('Content-Type', mime || 'application/octet-stream');
+      res.setHeader('Content-Length', String(data.length));
+      return res.send(data);
+    }
+
+    return res.status(404).json({ error: 'Image not found' });
   } catch (err) {
-    console.error('GET /news/:id/image error:', err);
+    console.error('serveImage error:', err);
     res.status(500).json({ error: 'Failed to load image' });
   }
+}
+
+// News image endpoint
+router.get('/news/:id/image', async (req, res) => {
+  const news: any = await News.findById(req.params.id).lean();
+  return serveImage(res, news?.image_data, news?.image_mime);
 });
 
-// GET /api/content/events/:id/image - Serve event image
+// Event image endpoint
 router.get('/events/:id/image', async (req, res) => {
-  try {
-    const event: any = await Event.findById(req.params.id).lean();
-    if (!event || !(event.image_url || event.image_data)) return res.status(404).json({ error: 'Image not found' });
-
-    if (event.image_url && typeof event.image_url === 'string') {
-      // external URL
-      return res.redirect(event.image_url);
-    }
-
-    if (typeof event.image_data === 'string') {
-      const imageData: string = String(event.image_data);
-      if (imageData && imageData.charAt(0) === '/') {
-        const filePath = path.join(process.cwd(), imageData.replace(/^\//, ''));
-        if (fsSync.existsSync(filePath)) {
-          const stat = fsSync.statSync(filePath);
-          const mime = event.image_mime || 'application/octet-stream';
-          res.setHeader('Content-Type', mime);
-          res.setHeader('Content-Length', String(stat.size));
-          const stream = fsSync.createReadStream(filePath);
-          return stream.pipe(res);
-        }
-
-        // Fallback to check 'contents' dir
-        const altPath = filePath.replace(path.join('uploads', 'content'), path.join('uploads', 'contents'));
-        if (fsSync.existsSync(altPath)) {
-          const stat = fsSync.statSync(altPath);
-          const mime = event.image_mime || 'application/octet-stream';
-          res.setHeader('Content-Type', mime);
-          res.setHeader('Content-Length', String(stat.size));
-          const stream = fsSync.createReadStream(altPath);
-          return stream.pipe(res);
-        }
-
-        return res.redirect(imageData);
-      }
-      return res.redirect(imageData);
-    }
-
-    // Buffer stored
-    const buf: Buffer = Buffer.isBuffer(event.image_data) ? event.image_data : Buffer.from(event.image_data);
-    const mime = event.image_mime || 'application/octet-stream';
-    res.setHeader('Content-Type', mime);
-    res.setHeader('Content-Length', String(buf.length));
-    return res.send(buf);
-  } catch (err) {
-    console.error('GET /events/:id/image error:', err);
-    res.status(500).json({ error: 'Failed to load image' });
-  }
+  const event: any = await Event.findById(req.params.id).lean();
+  return serveImage(res, event?.image_url || event?.image_data, event?.image_mime);
 });
 
 export default router;
