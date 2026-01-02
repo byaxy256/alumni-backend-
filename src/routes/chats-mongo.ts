@@ -11,13 +11,21 @@ const router = express.Router();
 const isObjectId = (id: any) => typeof id === 'string' && mongoose.Types.ObjectId.isValid(id);
 
 /**
- * Map Message → frontend-friendly shape
+ * Map Message → frontend-friendly shape with all fields
  */
 const mapMessage = (m: any) => ({
   id: m._id.toString(),
   sender_id: m.sender_uid,
   message_text: m.text,
   created_at: m.ts instanceof Date ? m.ts.toISOString() : new Date(m.ts).toISOString(),
+  type: m.type || 'text',
+  attachment: m.attachment,
+  read_by: m.read_by || [],
+  delivered_to: m.delivered_to || [],
+  reply_to: m.reply_to,
+  is_edited: m.is_edited || false,
+  edited_at: m.edited_at,
+  status: 'sent' // Can be enhanced with real-time status
 });
 
 /**
@@ -35,14 +43,38 @@ router.get('/:otherUid', authenticate, async (req, res) => {
     const sortedUids = [userUid, otherUid].sort();
     const chatId = `chat_${sortedUids[0]}_${sortedUids[1]}`;
 
-    let chat = await Chat.findOne({ chat_id: chatId }).lean();
+    let chat = await Chat.findOne({ chat_id: chatId });
     if (!chat) {
       // Create chat if it doesn't exist
-      const newChat = new Chat({ chat_id: chatId, participants: [userUid, otherUid] });
-      await newChat.save();
+      chat = new Chat({ 
+        chat_id: chatId, 
+        participants: [userUid, otherUid],
+        unread_count: new Map()
+      });
+      await chat.save();
     }
 
+    // Get all messages
     const messages = await Message.find({ chat_id: chatId }).sort({ ts: 1 }).lean();
+    
+    // Mark messages as read by current user
+    await Message.updateMany(
+      { 
+        chat_id: chatId,
+        sender_uid: { $ne: userUid },
+        read_by: { $ne: userUid }
+      },
+      { 
+        $addToSet: { read_by: userUid }
+      }
+    );
+
+    // Reset unread count for current user
+    if (chat.unread_count) {
+      chat.unread_count.set(userUid, 0);
+      await chat.save();
+    }
+    
     res.json(messages.map(mapMessage));
   } catch (err) {
     console.error('GET /:otherUid error:', err);
@@ -52,14 +84,16 @@ router.get('/:otherUid', authenticate, async (req, res) => {
 
 /**
  * POST /api/chat
- * Send message to a recipient using UIDs
+ * Send message to a recipient using UIDs (supports text, images, files)
  */
 router.post('/', authenticate, async (req, res) => {
   try {
-    const { recipientUid, message } = req.body;
+    const { recipientUid, message, type, attachment, reply_to } = req.body;
     const userUid = (req as any).user.uid;
 
-    if (!recipientUid || !message) return res.status(400).json({ error: 'recipientUid and message are required' });
+    if (!recipientUid || (!message && !attachment)) {
+      return res.status(400).json({ error: 'recipientUid and message/attachment are required' });
+    }
 
     // Verify recipient exists
     const recipient = await User.findOne({ uid: recipientUid });
@@ -71,14 +105,36 @@ router.post('/', authenticate, async (req, res) => {
 
     let chat = await Chat.findOne({ chat_id: chatId });
     if (!chat) {
-      chat = new Chat({ chat_id: chatId, participants: [userUid, recipientUid] });
-      await chat.save();
+      chat = new Chat({ 
+        chat_id: chatId, 
+        participants: [userUid, recipientUid],
+        unread_count: new Map()
+      });
     }
 
-    const msg = new Message({ chat_id: chat.chat_id, sender_uid: userUid, text: message, ts: new Date() });
+    // Create message with all fields
+    const msg = new Message({ 
+      chat_id: chat.chat_id, 
+      sender_uid: userUid, 
+      text: message || (attachment ? attachment.name : ''),
+      ts: new Date(),
+      type: type || 'text',
+      attachment: attachment,
+      reply_to: reply_to,
+      delivered_to: [recipientUid],
+      read_by: []
+    });
     await msg.save();
 
+    // Update chat metadata
+    chat.last_message = message || (attachment ? `📎 ${attachment.name}` : '');
+    chat.last_message_at = new Date();
     chat.updated_at = new Date();
+    
+    // Increment unread count for recipient
+    const currentUnread = chat.unread_count?.get(recipientUid) || 0;
+    chat.unread_count?.set(recipientUid, currentUnread + 1);
+    
     await chat.save();
 
     res.status(201).json(mapMessage(msg));
