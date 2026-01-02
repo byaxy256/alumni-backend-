@@ -10,14 +10,23 @@ console.log('================================');
 export const authenticate = (req, res, next) => {
     const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return res.sendStatus(401);
+    
+    if (!token) {
+        console.error('AUTH MIDDLEWARE - No token provided');
+        return res.sendStatus(401);
+    }
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) {
-            console.error('JWT verification failed:', err.message);
+            console.error('AUTH MIDDLEWARE - JWT verification failed:', err.message);
+            console.error('AUTH MIDDLEWARE - Error type:', err.name);
             console.error('Using secret (first 10 chars):', JWT_SECRET === process.env.JWT_SECRET ? `ENV: ${process.env.JWT_SECRET?.substring(0, 10)}...` : `FALLBACK`);
             return res.sendStatus(403);
         }
+        
+        console.log('AUTH MIDDLEWARE - Token verified successfully');
+        console.log('AUTH MIDDLEWARE - Decoded user:', JSON.stringify(user, null, 2));
+        
         (req as any).user = user;
         next();
     });

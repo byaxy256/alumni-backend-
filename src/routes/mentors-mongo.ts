@@ -50,17 +50,26 @@ const mapMentor = (u: any) => ({
  */
 router.get('/my-mentors', authenticate, async (req, res) => {
   try {
+    // Comprehensive auth check
+    if (!(req as any).user) {
+      console.error('GET /my-mentors - req.user is undefined!');
+      return res.status(401).json({ error: 'Not authenticated - middleware failed' });
+    }
+
     const userUid = (req as any).user?.uid;
     const userRole = (req as any).user?.role;
+    const userId = (req as any).user?.id;
 
-    console.log('GET /my-mentors - User:', { uid: userUid, role: userRole });
+    console.log('GET /my-mentors - Full user object:', JSON.stringify((req as any).user, null, 2));
+    console.log('GET /my-mentors - Extracted:', { uid: userUid, role: userRole, id: userId });
 
     if (!userUid) {
-      return res.status(401).json({ error: 'Invalid user - missing UID' });
+      console.error('GET /my-mentors - UID is missing from token');
+      return res.status(401).json({ error: 'Invalid user - missing UID in token' });
     }
 
     if (userRole !== 'student') {
-      console.log('Access denied: User role is', userRole, 'but endpoint requires student');
+      console.log('GET /my-mentors - Access denied: User role is', userRole, 'but endpoint requires student');
       return res.status(403).json({ error: `Only students can view their mentors. Your role: ${userRole}` });
     }
 
@@ -97,44 +106,76 @@ router.get('/my-mentors', authenticate, async (req, res) => {
  */
 router.get('/my-approved-mentees', authenticate, async (req, res) => {
   try {
+    // Comprehensive auth check
+    if (!(req as any).user) {
+      console.error('GET /my-approved-mentees - req.user is undefined!');
+      return res.status(401).json({ error: 'Not authenticated - middleware failed' });
+    }
+
     const userUid = (req as any).user?.uid;
     const userRole = (req as any).user?.role;
+    const userId = (req as any).user?.id;
 
-    console.log('GET /my-approved-mentees - User:', { uid: userUid, role: userRole });
+    console.log('GET /my-approved-mentees - Full user object:', JSON.stringify((req as any).user, null, 2));
+    console.log('GET /my-approved-mentees - Extracted:', { uid: userUid, role: userRole, id: userId });
 
     if (!userUid) {
-      return res.status(401).json({ error: 'Invalid user - missing UID' });
+      console.error('GET /my-approved-mentees - UID is missing from token');
+      return res.status(401).json({ error: 'Invalid user - missing UID in token' });
     }
 
     if (userRole !== 'alumni') {
-      console.log('Access denied: User role is', userRole, 'but endpoint requires alumni');
+      console.log('GET /my-approved-mentees - Access denied: User role is', userRole, 'but endpoint requires alumni');
       return res.status(403).json({ error: `Only alumni can view their mentees. Your role: ${userRole}` });
     }
 
     // Get active mentor assignments where user is the mentor
+    console.log('GET /my-approved-mentees - Querying MentorAssignment with:', { mentor_uid: userUid, status: 'active' });
     const assignments = await MentorAssignment.find({
       mentor_uid: userUid,
       status: 'active'
     }).lean();
 
+    console.log('GET /my-approved-mentees - Found', assignments.length, 'assignments');
+
     if (assignments.length === 0) {
+      console.log('GET /my-approved-mentees - No active mentees found, returning empty array');
       return res.json([]);
     }
 
     // Get student user information
+    console.log('GET /my-approved-mentees - Fetching student details for', assignments.length, 'assignments');
     const students = await Promise.all(
-      assignments.map(async (assignment) => {
-        const student = await User.findOne({ uid: assignment.student_uid })
-          .select('-password')
-          .lean();
-        return student ? { ...mapMentor(student), course: assignment.field } : null;
+      assignments.map(async (assignment, index) => {
+        try {
+          console.log(`GET /my-approved-mentees - Fetching student ${index + 1}:`, assignment.student_uid);
+          const student = await User.findOne({ uid: assignment.student_uid })
+            .select('-password')
+            .lean();
+          
+          if (!student) {
+            console.warn(`GET /my-approved-mentees - Student not found for UID:`, assignment.student_uid);
+            return null;
+          }
+          
+          return { ...mapMentor(student), course: assignment.field };
+        } catch (studentErr) {
+          console.error(`GET /my-approved-mentees - Error fetching student ${assignment.student_uid}:`, studentErr);
+          return null;
+        }
       })
     );
 
-    res.json(students.filter(Boolean));
+    const validStudents = students.filter(Boolean);
+    console.log('GET /my-approved-mentees - Returning', validStudents.length, 'valid students');
+    res.json(validStudents);
   } catch (err) {
-    console.error('GET /my-approved-mentees error:', err);
-    res.status(500).json({ error: 'Failed to fetch mentees' });
+    console.error('GET /my-approved-mentees FATAL error:', err);
+    console.error('Error stack:', (err as Error).stack);
+    res.status(500).json({ 
+      error: 'Failed to fetch mentees',
+      details: process.env.NODE_ENV === 'development' ? (err as Error).message : undefined
+    });
   }
 });
 
@@ -144,9 +185,16 @@ router.get('/my-approved-mentees', authenticate, async (req, res) => {
  */
 router.post('/request', authenticate, async (req, res) => {
   try {
+    if (!(req as any).user) {
+      console.error('POST /request - req.user is undefined!');
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
     const userUid = (req as any).user?.uid;
     const userRole = (req as any).user?.role;
     const { mentorUid } = req.body;
+
+    console.log('POST /request - User:', { uid: userUid, role: userRole }, 'mentorUid:', mentorUid);
 
     if (userRole !== 'student') {
       return res.status(403).json({ error: 'Only students can request mentors' });
@@ -189,9 +237,16 @@ router.post('/request', authenticate, async (req, res) => {
  */
 router.post('/approve', authenticate, async (req, res) => {
   try {
+    if (!(req as any).user) {
+      console.error('POST /approve - req.user is undefined!');
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
     const userUid = (req as any).user?.uid;
     const userRole = (req as any).user?.role;
     const { assignmentId } = req.body;
+
+    console.log('POST /approve - User:', { uid: userUid, role: userRole }, 'assignmentId:', assignmentId);
 
     if (userRole !== 'alumni') {
       return res.status(403).json({ error: 'Only alumni can approve requests' });
@@ -211,16 +266,7 @@ router.post('/approve', authenticate, async (req, res) => {
     }
 
     assignment.status = 'active';
-    assignment.  
-    
-    const mentorAssignmentSchema = new mongoose.Schema({
-      student_uid: { type: String, required: true },
-      mentor_uid: { type: String, required: true },
-      status: { type: String, enum: ['pending', 'active', 'rejected'], default: 'pending' },
-      requested_at: { type: Date, default: Date.now },
-      approved_at: { type: Date, default: null },
-      field: { type: String, default: '' }
-    }); = new Date();
+    (assignment as any).approved_at = new Date();
     await assignment.save();
 
     res.json({ message: 'Mentee approved', assignment });
