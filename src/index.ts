@@ -38,6 +38,7 @@ const corsOptions = {
     const allowedOrigins = [
       'http://localhost:5173',
       'http://localhost:3000',
+      'http://localhost:3001',
       'https://alumni-frontend-git-main-byaxydraxler256-6957s-projects.vercel.app',
       process.env.FRONTEND_URL,
     ].filter(Boolean);
