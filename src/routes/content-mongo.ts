@@ -36,11 +36,11 @@ async function saveUploadedFile(file?: Express.Multer.File) {
 router.get('/news', async (req, res) => {
   try {
     const news = await News.find({ status: 'published' }).sort({ created_at: -1 }).lean();
-    res.json({ content: news.map(item => ({
+    res.json({ content: news.map((item: any) => ({
       id: item._id?.toString(),
       title: item.title || '',
       description: item.description || item.content || '',
-      content: item.content || '',
+      content: item.content || item.description || '',
       hasImage: !!item.image_data,
       audience: item.audience || item.target_audience || 'all',
       published: item.status === 'published',
@@ -58,11 +58,11 @@ router.get('/news', async (req, res) => {
 router.get('/events', async (req, res) => {
   try {
     const events = await Event.find({ status: { $ne: 'draft' } }).sort({ event_date: -1 }).lean();
-    res.json({ content: events.map(item => ({
+    res.json({ content: events.map((item: any) => ({
       id: item._id?.toString(),
       title: item.title || '',
-      description: item.description || item.content || '',
-      content: item.content || '',
+      description: item.description || '',
+      content: item.description || '',
       hasImage: !!item.image_url || !!item.image_data,
       imageUrl: item.image_url || null,
       audience: item.audience || item.target_audience || 'all',
