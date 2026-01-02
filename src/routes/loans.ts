@@ -36,8 +36,26 @@ router.post('/', authenticate, authorize(['student']), upload.any(), async (req,
 // GET /api/loans (Alumni Office gets all loans)
 router.get('/', async (_req, res) => {
   try {
-    const loans = await Loan.find();
-    res.json(loans);
+    const loans = await Loan.find().sort({ created_at: -1 }).lean();
+    
+    // Enrich with user data
+    const enriched = await Promise.all(loans.map(async (loan) => {
+      const user = await User.findOne({ uid: loan.student_uid }).select('full_name email phone meta').lean();
+      return {
+        ...loan,
+        id: loan._id ? loan._id.toString() : loan.sqlId,
+        full_name: user?.full_name || 'N/A',
+        email: user?.email || '',
+        phone: user?.phone || '',
+        program: user?.meta?.program || 'N/A',
+        semester: user?.meta?.semester || 0,
+        university_id: user?.meta?.university_id || 'N/A',
+        amount_requested: loan.amount,
+        repaymentPeriod: 12, // Default repayment period
+      };
+    }));
+
+    res.json(enriched);
   } catch (err) {
     console.error('LOANS ERROR:', err);
     res.status(500).json({ error: 'Failed to load loans' });

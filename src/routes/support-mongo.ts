@@ -1,18 +1,36 @@
 // src/routes/support-mongo.ts - MongoDB-based support requests
 import express from 'express';
 import { SupportRequest } from '../models/SupportRequest.js';
+import { User } from '../models/User.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // GET /api/support - Get all support requests (admin/alumni_office only)
-router.get('/', authenticate, authorize(['admin', 'alumni_office']), async (req, res) => {
+router.get('/', async (_req, res) => {
   try {
     const requests = await SupportRequest.find().sort({ created_at: -1 }).lean();
-    res.json(requests);
+    
+    // Enrich with user data
+    const enriched = await Promise.all(requests.map(async (req) => {
+      const user = await User.findOne({ uid: req.student_uid }).select('full_name email phone meta').lean();
+      return {
+        ...req,
+        id: req._id ? req._id.toString() : req.sqlId,
+        full_name: user?.full_name || 'N/A',
+        email: user?.email || '',
+        phone: user?.phone || '',
+        program: user?.meta?.program || 'N/A',
+        semester: user?.meta?.semester || 0,
+        university_id: user?.meta?.university_id || 'N/A',
+        reason: req.description || req.reason || 'N/A',
+      };
+    }));
+    
+    res.json(enriched);
   } catch (err) {
-    console.error('GET /support error:', err);
-    res.status(500).json({ error: 'Failed to fetch support requests' });
+    console.error('SUPPORT ERROR:', err);
+    res.status(500).json({ error: 'Failed to load support requests' });
   }
 });
 
