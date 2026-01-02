@@ -3,6 +3,7 @@ import express from 'express';
 import multer from 'multer';
 import { Loan } from '../models/Loan.js';
 import { User } from '../models/User.js';
+import { Application } from '../models/Application.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -38,22 +39,27 @@ router.get('/', async (_req, res) => {
   try {
     const loans = await Loan.find().sort({ created_at: -1 }).lean();
     
-    // Enrich with user data
+    // Enrich with user data and application payload data
     const enriched = await Promise.all(loans.map(async (loan) => {
       const user = await User.findOne({ uid: loan.student_uid }).select('full_name email phone meta').lean();
+      
+      // Try to get data from Application if available (has semester and amount_requested from form)
+      const application = await Application.findOne({ student_uid: loan.student_uid, type: 'loan' }).sort({ created_at: -1 }).lean();
+      const appPayload = application?.payload || {};
+      
       return {
         ...loan,
         id: loan._id ? loan._id.toString() : loan.sqlId,
         type: 'loan',
         full_name: user?.full_name || '',
         email: user?.email || '',
-        phone: user?.phone || '',
-        program: user?.meta?.program || '',
-        semester: user?.meta?.semester || '',
-        university_id: user?.meta?.university_id || '',
-        amount_requested: loan.amount,
-        purpose: loan.purpose || '',
-        repaymentPeriod: 12, // Default repayment period
+        phone: user?.phone || appPayload?.phone || '',
+        program: user?.meta?.program || appPayload?.program || '',
+        semester: user?.meta?.semester || appPayload?.currentSemester || '',
+        university_id: user?.meta?.university_id || appPayload?.studentId || '',
+        amount_requested: loan.amount > 0 ? loan.amount : (appPayload?.amountRequested ? Number(appPayload.amountRequested) : 0),
+        purpose: loan.purpose || appPayload?.purpose || '',
+        repaymentPeriod: 12,
       };
     }));
 
