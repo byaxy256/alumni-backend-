@@ -187,14 +187,23 @@ router.get('/:paymentId/receipt', authenticate, async (req, res) => {
             return res.status(400).json({ error: 'Payment ID is required' });
         }
 
-        const payment = await Payment.findById(paymentId);
+        let payment;
+        try {
+            // Try to find by MongoDB ObjectId first
+            payment = await Payment.findById(paymentId).lean();
+        } catch (err) {
+            // If not a valid ObjectId, return not found
+            console.log(`Invalid ObjectId format: ${paymentId}`);
+        }
+
         if (!payment) {
+            console.log(`Payment not found with ID: ${paymentId}`);
             return res.status(404).json({ error: 'Payment not found' });
         }
 
         // Verify user owns this payment
-        const loan = await Loan.findById(payment.loan_id);
-        if (!loan || loan.student_uid !== userUid) {
+        if (payment.user_uid !== userUid && payment.payer_uid !== userUid) {
+            console.log(`Unauthorized access attempt: user ${userUid} tried to access payment ${paymentId}`);
             return res.status(403).json({ error: 'Unauthorized' });
         }
 
@@ -228,7 +237,7 @@ router.get('/:paymentId/receipt', authenticate, async (req, res) => {
                     <div class="details">
                         <div class="detail-row">
                             <span class="label">Receipt ID:</span>
-                            <span class="value">${payment._id}</span>
+                            <span class="value">${payment._id?.toString()}</span>
                         </div>
                         <div class="detail-row">
                             <span class="label">Date:</span>
@@ -240,7 +249,7 @@ router.get('/:paymentId/receipt', authenticate, async (req, res) => {
                         </div>
                         <div class="detail-row">
                             <span class="label">Loan ID:</span>
-                            <span class="value">${payment.loan_id}</span>
+                            <span class="value">${payment.loan_id || payment.loan_sql_id || 'N/A'}</span>
                         </div>
                         <div class="detail-row">
                             <span class="label">Transaction ID:</span>
@@ -248,7 +257,7 @@ router.get('/:paymentId/receipt', authenticate, async (req, res) => {
                         </div>
                         <div class="detail-row">
                             <span class="label">Amount:</span>
-                            <span class="value amount">UGX ${payment.amount.toLocaleString()}</span>
+                            <span class="value amount">UGX ${Number(payment.amount).toLocaleString()}</span>
                         </div>
                         <div class="detail-row">
                             <span class="label">Status:</span>
@@ -256,8 +265,14 @@ router.get('/:paymentId/receipt', authenticate, async (req, res) => {
                         </div>
                         <div class="detail-row">
                             <span class="label">Payment Method:</span>
-                            <span class="value">MTN Mobile Money</span>
+                            <span class="value">${payment.method || 'MTN Mobile Money'}</span>
                         </div>
+                        ${payment.access_number ? `
+                        <div class="detail-row">
+                            <span class="label">Access Number:</span>
+                            <span class="value">${payment.access_number}</span>
+                        </div>
+                        ` : ''}
                     </div>
                     <div class="status">
                         ✓ Payment Successful
