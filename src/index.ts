@@ -32,17 +32,36 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
    Middleware
 ======================= */
 
-app.use(
-  cors({
-    origin: [
+// CORS configuration with origin function for flexibility
+const corsOptions = {
+  origin: function (origin: any, callback: any) {
+    const allowedOrigins = [
       'http://localhost:5173',
       'http://localhost:3000',
       'https://alumni-frontend-git-main-byaxydraxler256-6957s-projects.vercel.app',
       process.env.FRONTEND_URL,
-    ].filter(Boolean),
-    credentials: true,
-  })
-);
+    ].filter(Boolean);
+
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // Allow Vercel preview deployments (*.vercel.app)
+    if (origin.includes('vercel.app')) return callback(null, true);
+
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
