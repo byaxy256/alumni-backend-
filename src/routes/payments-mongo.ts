@@ -177,4 +177,109 @@ router.post('/confirm', authenticate, async (req, res) => {
     }
 });
 
+// GET /api/payments/:paymentId/receipt - generate/retrieve payment receipt
+router.get('/:paymentId/receipt', authenticate, async (req, res) => {
+    try {
+        const { paymentId } = req.params;
+        const userUid = (req as any).user.uid;
+
+        if (!paymentId) {
+            return res.status(400).json({ error: 'Payment ID is required' });
+        }
+
+        const payment = await Payment.findById(paymentId);
+        if (!payment) {
+            return res.status(404).json({ error: 'Payment not found' });
+        }
+
+        // Verify user owns this payment
+        const loan = await Loan.findById(payment.loan_id);
+        if (!loan || loan.student_uid !== userUid) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+
+        // Generate a simple HTML receipt as PDF
+        const receiptHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Payment Receipt</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 40px; }
+                    .receipt { max-width: 600px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; }
+                    .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+                    .title { font-size: 24px; font-weight: bold; color: #0b2a4a; }
+                    .subtitle { font-size: 14px; color: #666; margin-top: 5px; }
+                    .details { margin: 20px 0; }
+                    .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+                    .label { font-weight: bold; color: #333; }
+                    .value { color: #666; }
+                    .amount { font-size: 18px; font-weight: bold; color: #0b2a4a; }
+                    .status { padding: 10px; background-color: #d4edda; color: #155724; border-radius: 4px; text-align: center; margin: 20px 0; }
+                    .footer { text-align: center; margin-top: 30px; color: #999; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <div class="receipt">
+                    <div class="header">
+                        <div class="title">PAYMENT RECEIPT</div>
+                        <div class="subtitle">Alumni Aid Portal</div>
+                    </div>
+                    <div class="details">
+                        <div class="detail-row">
+                            <span class="label">Receipt ID:</span>
+                            <span class="value">${payment._id}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Date:</span>
+                            <span class="value">${new Date(payment.created_at).toLocaleDateString('en-GB')}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Time:</span>
+                            <span class="value">${new Date(payment.created_at).toLocaleTimeString()}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Loan ID:</span>
+                            <span class="value">${payment.loan_id}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Transaction ID:</span>
+                            <span class="value">${payment.transaction_id}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Amount:</span>
+                            <span class="value amount">UGX ${payment.amount.toLocaleString()}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Status:</span>
+                            <span class="value">${payment.status}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Payment Method:</span>
+                            <span class="value">MTN Mobile Money</span>
+                        </div>
+                    </div>
+                    <div class="status">
+                        ✓ Payment Successful
+                    </div>
+                    <div class="footer">
+                        <p>This is an automatically generated receipt. No signature is required.</p>
+                        <p>For inquiries, contact the Alumni Office at support@alumni.ac.ug</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        // Convert HTML to simple PDF-like response
+        // For now, send as HTML that can be printed/saved as PDF
+        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('Content-Disposition', `attachment; filename="receipt-${paymentId}.html"`);
+        res.send(receiptHtml);
+    } catch (err) {
+        console.error('GET /receipt error:', err);
+        res.status(500).json({ error: 'Failed to generate receipt' });
+    }
+});
+
 export default router;
